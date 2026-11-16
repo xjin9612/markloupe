@@ -91,6 +91,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/shots"
           npm test
+          npm run test:crx
         env:
           SHOT_DIR: ${{ runner.temp }}/shots
 

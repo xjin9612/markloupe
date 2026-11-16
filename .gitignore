@@ -1,5 +1,9 @@
 node_modules/
 *.zip
+*.crx
+# 私鑰一律不進版控；只有 CRX 簽署用的公鑰例外
+*.pem
+!docs/store/markloupe-crx.pub.pem
 dist/
 .idea/
 # 手動測試的大檔由 npm run manual:bigfile 產生
