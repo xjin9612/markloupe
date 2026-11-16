@@ -86,6 +86,7 @@ scripts/
   setup-linux.sh         Linux／WSL 開發環境安裝
   vendor.mjs             升級 vendor
   release.mjs            發版輔助：版本與商店欄位長度檢查、取出 Release 說明、打包
+  crx.mjs                把 Release 的商店版 zip 簽成 CRX（Verified CRX uploads）
   screenshots.mjs        README 與商店截圖（npm run screenshots）
   demo-gifs.mjs          README 的示範動畫（npm run gifs）
   layout-audit.mjs       版面檢查（npm run audit:layout）
@@ -94,12 +95,13 @@ docs/
   DEVELOPMENT.md         本文件
   demo.md、demo.zh-TW.md 截圖用的示範文件
   screenshots/           README 用的示範動畫（*.gif）與截圖（<語系>/）
-  store/                 商店截圖、宣傳圖、示範表格與送審資料（listing.md）
+  store/                 商店截圖、宣傳圖、示範表格、送審資料（listing.md）與 CRX 簽署公鑰
 .github/workflows/       自動測試（ci.yml）、自動發布（release.yml）、Linux 視覺基準圖（visual-baselines.yml）
 .github/dependabot.yml   每月更新 Actions 與 npm 開發套件
 test/
   e2e.mjs                端對端測試
   visual.mjs             視覺回歸測試
+  crx.mjs                CRX 簽署與驗證的測試
   fixtures/              測試文件（含 security.md 攻擊樣本）
   visual/<平台>/          視覺回歸的基準圖，依作業系統分開
   manual/                手動測試清單
@@ -176,6 +178,7 @@ flowchart LR
 | Actions 釘選 | 所有 workflow | 以 commit SHA 引用，註解標示版本 |
 | 自動更新 | `.github/dependabot.yml` | 每月為 Actions 與 npm 開 PR，新版滿 7 天才提議 |
 | 建置來源證明 | `release.yml` | Release 的 zip 附 GitHub 的 build provenance |
+| 簽署上傳 | `scripts/crx.mjs` | 商店只接受以開發者私鑰簽署的 CRX（Verified CRX uploads）；私鑰離線保存 |
 | 不執行安裝腳本 | `.npmrc` | `ignore-scripts=true`：`npm ci` 不執行套件的 install 腳本 |
 
 - 重現 vendor 證明 repo 中的檔案等於 npm 上的官方套件，加上 `vendor.mjs` 寫明的轉換。`npm pack` 下載時會比對 registry 的雜湊。
@@ -216,6 +219,14 @@ npm test
 - 匯出與列印：單一檔案不含程式碼、段落展開、樣式與勾選狀態保留、公式字型內嵌，內嵌本機與網路圖片、讀不到或不是圖片的維持原網址、單一檔的本機連結保留相對路徑並改成 .html、front matter 的 lang、網路上的文件不內嵌本機與內網圖片、超過大小上限與連不上的回報；列印樣式展開摺疊、深色主題改用淺色、圖表以淺色重繪後還原；匯出 Word 的每個 XML 都能解析，標題書籤、文字格式、清單（含鬆散清單與起始編號）、程式碼、提示框、表格、連結、圖片與圖表、公式轉成 Word 原生公式（運算子、函數、對齊式；語法錯誤保留原文）、腳註轉成 Word 腳註（重複引用各一份、腳註內的連結與圖片）、HTML 表格的跨列與跨欄儲存格、front matter 的標題區與文件屬性、中日韓文字的東亞字型標記，以及設定的字型、字級與紙張
 - 介面語言：兩份語系檔鍵值一致、指定介面語言、英文介面冒煙測試
 - 安裝後的引導頁、popup 設定、擴充功能重新載入後舊分頁的提示
+
+### CRX 簽署測試
+
+```bash
+npm run test:crx
+```
+
+以臨時金鑰檢查 `scripts/crx.mjs`：簽出的 CRX 要與 Chromium `--pack-extension` 的結果逐位元組相同；內容、簽章或 CRX ID 被改過時驗證失敗。
 
 ### 視覺回歸測試
 
@@ -313,6 +324,38 @@ chrome.exe --remote-debugging-port=9222 --user-data-dir="$env:TEMP\markloupe-cdp
 4. 為兩個 zip 產生建置來源證明。
 5. 以該版 CHANGELOG 段落為說明，發布 GitHub Release，附兩個 zip：
    - `markloupe-vX.Y.Z.zip`：內含 `markloupe-vX.Y.Z/` 資料夾，供「載入未封裝項目」使用
-   - `markloupe-vX.Y.Z-store.zip`：`manifest.json` 位於根目錄，上傳 Chrome Web Store 與 Edge Add-ons 用
+   - `markloupe-vX.Y.Z-store.zip`：`manifest.json` 位於根目錄，簽成 CRX 後上傳 Chrome Web Store（見下方）
 
 商店後台要填的文字與圖片見 [docs/store/listing.md](store/listing.md)。
+
+### 簽署並上傳 Chrome Web Store
+
+商店項目已啟用 [Verified CRX uploads](https://developer.chrome.com/docs/webstore/update)：只接受以開發者私鑰簽署的 CRX，上傳 zip 或其他金鑰簽的 CRX 都會被拒絕。帳號被盜也無法發布新版。
+
+Release 完成後，在 WSL 或 macOS／Linux 執行（需要 node 22 與已登入的 `gh`）：
+
+```bash
+node scripts/crx.mjs sign vX.Y.Z --key <私鑰.pem>
+```
+
+1. 下載 Release 的 `markloupe-vX.Y.Z-store.zip`。
+2. 以 `gh attestation verify` 驗證建置來源證明，限定來自 `refs/tags/vX.Y.Z` 的 `release.yml`。
+3. 確認 zip 中 `manifest.json` 的版本是 X.Y.Z。
+4. 詢問私鑰密碼，確認私鑰與 `docs/store/markloupe-crx.pub.pem` 是同一對。
+5. 把 zip 原封不動簽成 `dist/markloupe-vX.Y.Z.crx`，印出 SHA-256。
+
+在開發人員資訊主頁的 **Package** → **Upload New Package** 上傳這個 CRX。腳本印出的 CRX ID 由簽署金鑰算出，與商店項目的 ID 不同。商店驗證簽章後，會以原本的金鑰重新簽署，項目 ID 不變。
+
+`node scripts/crx.mjs verify <檔案.crx>` 可檢查任一 CRX 的簽章，以及是否以 repo 的公鑰簽署。
+
+#### 金鑰
+
+- 私鑰以密碼加密（AES-256），產生方式：
+  ```bash
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -aes-256-cbc -out markloupe-crx.pem
+  openssl rsa -in markloupe-crx.pem -pubout -out docs/store/markloupe-crx.pub.pem
+  ```
+- 私鑰不進 repo（`.gitignore` 忽略所有 `*.pem`，只放行公鑰），也不放 Google 帳號或雲端硬碟。
+- 私鑰檔至少存兩份離線備份，密碼另存密碼管理器。
+- 私鑰遺失或外洩時，要聯絡 Chrome Web Store 客服更換公鑰，最長一週；這段期間無法發布新版。
+
