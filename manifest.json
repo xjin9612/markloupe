@@ -104,6 +104,7 @@
         "src/content/docx.js",
         "src/content/table.js",
         "src/content/files.js",
+        "src/content/recent.js",
         "src/content/source.js",
         "src/content/changes.js",
         "src/content/toc.js",

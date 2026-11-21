@@ -1,5 +1,5 @@
 'use strict'
-// 側邊欄：「目錄｜檔案」兩個分頁、搜尋、目前章節高亮、摺疊標記、拖拉寬度
+// 側邊欄：「目錄｜檔案｜最近」分頁、搜尋、目前章節高亮、摺疊標記、拖拉寬度
 var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
 ;(() => {
@@ -15,7 +15,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       this.tab = 'toc'
       this.statsText = ''
 
-      // 標題列：選單 ｜ 目錄 檔案 ｜ 搜尋；搜尋時分頁標籤換成搜尋框
+      // 標題列：選單 ｜ 目錄 檔案 最近 ｜ 搜尋；搜尋時分頁標籤換成搜尋框
       const menu = h(
         'button',
         { class: 'ml-tool ml-side-menu', title: t('toolTocTitle'), attrs: { 'aria-label': t('toggleSidebar') }, on: { click: () => this.app.toggleToc() } },
@@ -23,8 +23,9 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       )
       this.tabToc = h('button', { class: 'ml-side-tab', text: t('tabToc'), on: { click: () => this.setTab('toc') } })
       this.tabFiles = h('button', { class: 'ml-side-tab', text: t('tabFiles'), on: { click: () => this.setTab('files') } })
-      // 兩顆切換鈕（aria-pressed），不宣告 tablist：分頁標籤需要方向鍵操作，這裡用一般 Tab 鍵就夠
-      this.tabs = h('div', { class: 'ml-side-tabs' }, [this.tabToc, this.tabFiles])
+      this.tabRecent = h('button', { class: 'ml-side-tab', text: t('tabRecent'), on: { click: () => this.setTab('recent') } })
+      // 切換鈕（aria-pressed），不宣告 tablist：分頁標籤需要方向鍵操作，這裡用一般 Tab 鍵就夠
+      this.tabs = h('div', { class: 'ml-side-tabs' }, [this.tabToc, this.tabFiles, this.tabRecent])
       this.searchBtn = h(
         'button',
         { class: 'ml-tool ml-side-icon', title: t('searchTitle'), attrs: { 'aria-label': t('searchTitle') }, on: { click: () => this.openSearch() } },
@@ -67,9 +68,11 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         this.files = new Markloupe.FileTree()
         this.el.insertBefore(this.files.el, this.resizer)
       } else {
-        this.tabs.hidden = true
+        this.tabFiles.hidden = true
       }
-      this.setTab(this.files && app.view.sideTab === 'files' ? 'files' : 'toc', false)
+      this.recent = new Markloupe.RecentList()
+      this.el.insertBefore(this.recent.el, this.resizer)
+      this.setTab(app.view.sideTab, false)
 
       this.el.addEventListener('mouseenter', () => (this.hovering = true))
       this.el.addEventListener('mouseleave', () => (this.hovering = false))
@@ -78,21 +81,23 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       this.bindResize()
     }
 
-    /** 切換「目錄｜檔案」分頁；檔案清單第一次切到時才讀取 */
+    /** 切換「目錄｜檔案｜最近」分頁；檔案與最近的清單第一次切到時才讀取 */
     setTab(tab, save = true) {
-      if (tab === 'files' && !this.files) tab = 'toc'
+      if (!['toc', 'files', 'recent'].includes(tab) || (tab === 'files' && !this.files)) tab = 'toc'
       this.tab = tab
-      this.tabToc.classList.toggle('active', tab === 'toc')
-      this.tabFiles.classList.toggle('active', tab === 'files')
-      this.tabToc.setAttribute('aria-pressed', String(tab === 'toc'))
-      this.tabFiles.setAttribute('aria-pressed', String(tab === 'files'))
+      for (const [name, btn] of [['toc', this.tabToc], ['files', this.tabFiles], ['recent', this.tabRecent]]) {
+        btn.classList.toggle('active', tab === name)
+        btn.setAttribute('aria-pressed', String(tab === name))
+      }
       this.tocNav.hidden = tab !== 'toc'
       if (this.files) this.files.el.hidden = tab !== 'files'
-      this.search.placeholder = t(tab === 'files' ? 'filesSearch' : 'tocSearch')
+      this.recent.el.hidden = tab !== 'recent'
+      this.search.placeholder = t({ toc: 'tocSearch', files: 'filesSearch', recent: 'recentSearch' }[tab])
       if (tab === 'files' && !this.filesStarted) {
         this.filesStarted = true
         this.files.init()
       }
+      if (tab === 'recent' && !this.recent.started) this.recent.load()
       this.applyQuery()
       if (save) this.app.setView({ sideTab: tab })
     }
@@ -110,20 +115,21 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       this.search.value = ''
       this.searchBox.hidden = true
       this.searchBtn.hidden = false
-      this.tabs.hidden = !this.files
+      this.tabs.hidden = false
       this.applyQuery()
     }
 
     /** 依目前分頁套用搜尋字串 */
     applyQuery() {
       if (this.tab === 'files') this.files.setQuery(this.search.value)
+      else if (this.tab === 'recent') this.recent.setQuery(this.search.value)
       else this.applyFilter()
       this.syncStats()
     }
 
     syncStats() {
-      // 檔案分頁的摘要顯示在分頁自己的頂端（含「↑ 上一層」）
-      this.stats.textContent = this.tab === 'files' ? '' : this.statsText
+      // 字數與閱讀時間只在目錄分頁顯示；檔案分頁的摘要在分頁自己的頂端（含「↑ 上一層」）
+      this.stats.textContent = this.tab === 'toc' ? this.statsText : ''
     }
 
     build(headings, depth) {

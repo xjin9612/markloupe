@@ -480,6 +480,24 @@
   "popupTitle": {
     "message": "Markloupe settings"
   },
+  "tabRecent": {
+    "message": "Recent"
+  },
+  "recentSearch": {
+    "message": "Search recent and pinned documents"
+  },
+  "recentPinned": {
+    "message": "Pinned"
+  },
+  "recentRecent": {
+    "message": "Recent"
+  },
+  "recentNoMatch": {
+    "message": "No matching documents"
+  },
+  "recentPinFull": {
+    "message": "You can pin up to $1 documents. Unpin one first"
+  },
   "docxTemplate": {
     "message": "Word template"
   },
