@@ -127,6 +127,24 @@ function updateFiles(tabId, fn) {
 }
 chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove(filesKey(tabId)))
 
+/*
+ * 最近開過與釘選的文件（popup 列出）：存在 storage.local，不同步（本機路徑在各台電腦不同）。
+ * 依序寫入，各分頁同時開啟文件也不會互相蓋掉
+ */
+const RECENT_LIMIT = 20 // 本機檔案與網頁各記幾份
+const PINNED_LIMIT = 50
+let listWrites = Promise.resolve()
+function updateList(key, fn) {
+  listWrites = listWrites
+    .then(async () => {
+      const list = (await chrome.storage.local.get(key))[key] || []
+      await chrome.storage.local.set({ [key]: fn(list) })
+    })
+    .catch(() => {})
+  return listWrites
+}
+const isDocUrl = url => typeof url === 'string' && /^(file|https?):/i.test(url) && url.length <= 4096
+
 const POS_LIMIT = 300 // 閱讀位置最多記幾份文件，超過時丟掉最久沒讀的
 let positions = Promise.resolve() // 閱讀位置依序寫入，各分頁同時捲動也不會互相蓋掉
 
@@ -191,6 +209,35 @@ const HANDLERS = {
     })
     positions = positions.catch(() => {})
     await positions
+    return { status: 'ok' }
+  },
+
+  /** 閱讀頁開啟時記進最近開過的文件；無痕視窗與關閉這項設定時不記 */
+  async 'record-visit'(msg, sender) {
+    const url = (sender.url || '').split('#')[0]
+    if (sender.tab?.incognito || !isDocUrl(url) || !(await Markloupe.loadSettings()).recentFiles) return { status: 'ok' }
+    const title = String(msg.title || '').trim().slice(0, 200)
+    let files = 0
+    let web = 0
+    await updateList(Markloupe.RECENT_KEY, list =>
+      [{ url, title, at: Date.now() }, ...list.filter(e => e.url !== url)].filter(e => (e.url.startsWith('file:') ? ++files : ++web) <= RECENT_LIMIT),
+    )
+    // 釘選的文件換了標題時跟著更新
+    await updateList(Markloupe.PINNED_KEY, list => list.map(e => (e.url === url && title ? { ...e, title } : e)))
+    return { status: 'ok' }
+  },
+
+  /** popup 修改清單：pin、unpin、remove（從最近移除）、clear（清空最近） */
+  async 'recent-update'(msg) {
+    const { action, url } = msg
+    if (action === 'clear') await updateList(Markloupe.RECENT_KEY, () => [])
+    else if (!isDocUrl(url)) return { status: 'error', error: 'invalid url' }
+    else if (action === 'remove') await updateList(Markloupe.RECENT_KEY, list => list.filter(e => e.url !== url))
+    else if (action === 'unpin') await updateList(Markloupe.PINNED_KEY, list => list.filter(e => e.url !== url))
+    else if (action === 'pin') {
+      const title = String(msg.title || '').trim().slice(0, 200)
+      await updateList(Markloupe.PINNED_KEY, list => (list.some(e => e.url === url) ? list : [...list, { url, title }].slice(-PINNED_LIMIT)))
+    } else return { status: 'error', error: 'invalid action' }
     return { status: 'ok' }
   },
 

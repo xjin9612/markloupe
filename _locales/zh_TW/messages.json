@@ -480,6 +480,30 @@
   "popupTitle": {
     "message": "Markloupe 設定"
   },
+  "secRecent": {
+    "message": "釘選與最近開過的文件"
+  },
+  "recentEmpty": {
+    "message": "開啟 Markdown 文件後會列在這裡"
+  },
+  "recentMore": {
+    "message": "還有 $1 份"
+  },
+  "optRecentFiles": {
+    "message": "記錄最近開過的文件"
+  },
+  "recentClear": {
+    "message": "清除最近紀錄"
+  },
+  "recentPin": {
+    "message": "釘選"
+  },
+  "recentUnpin": {
+    "message": "取消釘選"
+  },
+  "recentRemove": {
+    "message": "從清單移除"
+  },
   "popupEnable": {
     "message": "啟用"
   },

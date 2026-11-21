@@ -480,6 +480,30 @@
   "popupTitle": {
     "message": "Markloupe 设置"
   },
+  "secRecent": {
+    "message": "固定与最近打开的文档"
+  },
+  "recentEmpty": {
+    "message": "打开 Markdown 文档后会列在这里"
+  },
+  "recentMore": {
+    "message": "还有 $1 份"
+  },
+  "optRecentFiles": {
+    "message": "记录最近打开的文档"
+  },
+  "recentClear": {
+    "message": "清除最近记录"
+  },
+  "recentPin": {
+    "message": "固定"
+  },
+  "recentUnpin": {
+    "message": "取消固定"
+  },
+  "recentRemove": {
+    "message": "从列表移除"
+  },
   "popupEnable": {
     "message": "启用"
   },

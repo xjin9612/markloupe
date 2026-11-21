@@ -295,6 +295,80 @@
     return el.value
   }
 
+  /* ---------- 釘選與最近開過的文件 ---------- */
+  const RECENT_SHOWN = 5 // 平常列出幾份最近開過的文件，其餘按「更多」才列出
+  let recentAll = false
+  function node(tag, props, kids = []) {
+    const n = Object.assign(document.createElement(tag), props)
+    n.append(...kids)
+    return n
+  }
+  /** 顯示用的名稱與位置：本機檔案為檔名與所在的上兩層資料夾，網頁為路徑最後一段與網站 */
+  function describe(url) {
+    try {
+      const u = new URL(url)
+      let path = u.pathname
+      try {
+        path = decodeURIComponent(path)
+      } catch {
+        // 不合法的 % 編碼：沿用原字串
+      }
+      const parts = path.split('/').filter(Boolean)
+      const name = parts.pop() || u.host
+      const file = u.protocol === 'file:'
+      return { name, where: file ? parts.slice(-2).join('/') : u.host, full: file ? path.replace(/^\/(?=[A-Za-z]:)/, '') : url }
+    } catch {
+      return { name: url, where: '', full: url }
+    }
+  }
+  const updateRecent = msg => chrome.runtime.sendMessage({ type: 'recent-update', ...msg }).catch(() => {})
+  function recentRow(entry, pinned) {
+    const { name, where, full } = describe(entry.url)
+    const open = node('button', { type: 'button', className: 'recent-open', title: full }, [
+      node('span', { className: 'recent-title', textContent: entry.title || name }),
+      node('span', { className: 'recent-where', textContent: where }),
+    ])
+    open.addEventListener('click', () => {
+      chrome.tabs.create({ url: entry.url })
+      window.close()
+    })
+    const label = t(pinned ? 'recentUnpin' : 'recentPin')
+    const pin = node('button', { type: 'button', className: 'icon-btn', title: label }, [Markloupe.icon('pin')])
+    pin.setAttribute('aria-pressed', String(pinned))
+    pin.setAttribute('aria-label', label)
+    pin.addEventListener('click', () => updateRecent({ action: pinned ? 'unpin' : 'pin', url: entry.url, title: entry.title }))
+    const kids = [open, pin]
+    if (!pinned) {
+      const remove = node('button', { type: 'button', className: 'icon-btn', title: t('recentRemove') }, [Markloupe.icon('close')])
+      remove.setAttribute('aria-label', t('recentRemove'))
+      remove.addEventListener('click', () => updateRecent({ action: 'remove', url: entry.url }))
+      kids.push(remove)
+    }
+    return node('li', { className: 'recent-item' }, kids)
+  }
+  async function renderRecent() {
+    const data = await chrome.storage.local.get([Markloupe.RECENT_KEY, Markloupe.PINNED_KEY])
+    const pinned = data[Markloupe.PINNED_KEY] || []
+    const pinnedUrls = new Set(pinned.map(e => e.url))
+    const recent = (data[Markloupe.RECENT_KEY] || []).filter(e => !pinnedUrls.has(e.url))
+    const shown = recentAll ? recent : recent.slice(0, RECENT_SHOWN)
+    $('#recent-list').replaceChildren(...pinned.map(e => recentRow(e, true)), ...shown.map(e => recentRow(e, false)))
+    $('#recent-empty').hidden = pinned.length + recent.length > 0
+    const more = $('#recent-more')
+    more.hidden = shown.length === recent.length
+    more.textContent = t('recentMore', recent.length - shown.length)
+    $('#recent-clear').disabled = !recent.length
+  }
+  $('#recent-more').addEventListener('click', () => {
+    recentAll = true
+    renderRecent()
+  })
+  $('#recent-clear').addEventListener('click', () => updateRecent({ action: 'clear' }))
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && (Markloupe.RECENT_KEY in changes || Markloupe.PINNED_KEY in changes)) renderRecent()
+  })
+  renderRecent()
+
   fill({ ...(await Markloupe.loadSettings()), syncEnabled: await Markloupe.isSyncEnabled() })
 
   form.addEventListener('change', async e => {
@@ -326,6 +400,10 @@
       await Markloupe.initI18n(el.value)
       Markloupe.localize()
       labelColors()
+    } else if (el.name === 'recentFiles') {
+      await Markloupe.saveSettings({ recentFiles: el.checked })
+      // 關閉時一併清除已記下的最近開過的文件；釘選的保留
+      if (!el.checked) await updateRecent({ action: 'clear' })
     } else if (el.name === 'syncEnabled') {
       // 開啟時若雲端已有設定會套用到這台電腦，重新填入表單
       await Markloupe.setSyncEnabled(el.checked)

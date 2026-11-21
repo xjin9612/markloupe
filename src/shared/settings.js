@@ -32,6 +32,7 @@ Markloupe.DEFAULTS = Object.freeze({
   refreshInterval: 1000,
   refreshHighlight: true, // 自動更新時標出改動的區塊
   rememberScroll: true,
+  recentFiles: true, // popup 列出最近開過的文件
   linkNewTab: true, // 外部 http(s) 連結在新分頁開啟
   linkCheck: true, // 本機文件標出指向不存在檔案的相對連結
   fileIgnore: '.*, node_modules, target, dist, build', // 側邊欄檔案列表略過的名稱（逗號分隔，* 為萬用字元）
@@ -99,13 +100,15 @@ Markloupe.PALETTES = ['github', 'sepia', 'contrast', 'green', 'graphite', 'custo
 Markloupe.SYNC_FLAG_KEY = 'markloupe:sync'
 Markloupe.SYNC_KEYS = [
   'uiLang', 'theme', 'palette', 'customColors', 'fontSize', 'lineHeight', 'bodyFont', 'textWidth', 'tableWidth', 'tocHidden', 'tocDepth',
-  'tableWrap', 'codeWrap', 'codeLineNumbers', 'autoRefresh', 'refreshInterval', 'refreshHighlight', 'rememberScroll', 'linkNewTab', 'linkCheck', 'fileIgnore',
+  'tableWrap', 'codeWrap', 'codeLineNumbers', 'autoRefresh', 'refreshInterval', 'refreshHighlight', 'rememberScroll', 'recentFiles', 'linkNewTab', 'linkCheck', 'fileIgnore',
   'editor', 'taskWrite', 'mermaid', 'math', 'docxCjkFont', 'docxLatinFont', 'docxCodeFont', 'docxFontSize', 'docxPaper',
 ]
 // storage.sync 單一項目上限 8192 bytes（含鍵名），自訂 CSS 另存一項
 Markloupe.SYNC_CSS_KEY = 'markloupe:customCss'
 Markloupe.CUSTOM_CSS_MAX_BYTES = 8000
 Markloupe.POS_KEY = 'markloupe:scroll' // 各文件的閱讀位置：網址 → 捲動位置
+Markloupe.RECENT_KEY = 'markloupe:recent' // 最近開過的文件：[{ url, title, at }]，新的在前
+Markloupe.PINNED_KEY = 'markloupe:pinned' // 釘選的文件：[{ url, title }]
 Markloupe.cssBytes = css => new TextEncoder().encode(JSON.stringify(css)).length
 
 Markloupe.isSyncEnabled = async function () {
