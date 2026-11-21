@@ -2860,12 +2860,13 @@ try {
     try {
       assert.equal(await sw.evaluate(() => Markloupe.isSyncEnabled()), true, '預設開啟')
       await sw.evaluate(() => Markloupe.saveSettings({ lineHeight: 1.9, tocWidth: 300, editorUrl: 'vscode://file/{path}' }))
+      await until(async () => (await remote()).lineHeight === 1.9)
       const r = await remote()
-      assert.equal(r.lineHeight, 1.9)
       assert.ok(r._from, '標示寫入的電腦')
       // 自己寫入的變更通知不會被當成其他電腦的變更：連續快速修改後本機仍是最後的值
+      // 一秒內的連續修改合併成一次上傳，雲端是最後的值
       for (const v of [1.8, 1.85, 1.95]) await sw.evaluate(v => Markloupe.saveSettings({ lineHeight: v }), v)
-      await new Promise(r => setTimeout(r, 500))
+      await until(async () => (await remote()).lineHeight === 1.95)
       assert.equal((await local()).lineHeight, 1.95, '自己的舊通知不會蓋回較新的設定')
       assert.ok(!('tocWidth' in r) && !('editorUrl' in r) && !('enabled' in r), `不同步的鍵：${Object.keys(r)}`)
       // 模擬其他電腦改了設定
@@ -2892,8 +2893,10 @@ try {
       assert.equal((await local()).lineHeight, 2.3)
       // 本機的自訂 CSS 超過上限、不上傳：其他電腦改了別的設定時，雲端的舊 CSS 不蓋掉本機
       await sw.evaluate(() => Markloupe.saveSettings({ customCss: 'body{color:red}' }))
+      await until(async () => (await sw.evaluate(() => chrome.storage.sync.get('markloupe:customCss')))['markloupe:customCss'] === 'body{color:red}')
       const big = `/* ${'x'.repeat(9000)} */`
       await sw.evaluate(css => Markloupe.saveSettings({ customCss: css }), big)
+      await new Promise(r => setTimeout(r, 1200)) // 合併的上傳在一秒內完成
       await sw.evaluate(async () => {
         const k = 'markloupe:settings'
         const cur = (await chrome.storage.sync.get(k))[k]
@@ -2901,17 +2904,17 @@ try {
       })
       await until(async () => (await local()).lineHeight === 2.0)
       assert.equal((await local()).customCss, big, '本機的大 CSS 保留')
-      // popup 與 background 同時寫入不同的鍵：兩個變更都留下
+      // popup 與 background 同時寫入不同的鍵：兩個變更都留下（用不同步的鍵，不佔 storage.sync 的寫入次數）
       const pop = await ctx.newPage()
       try {
         await pop.goto(`chrome-extension://${sw.url().split('/')[2]}/src/popup/popup.html`)
         await Promise.all([
-          ...[1.6, 1.65, 1.75].map(v => pop.evaluate(v => Markloupe.saveSettings({ lineHeight: v }), v)),
-          ...[17, 18].map(v => sw.evaluate(v => Markloupe.saveSettings({ fontSize: v }), v)),
+          ...[270, 280, 290].map(v => pop.evaluate(v => Markloupe.saveSettings({ tocWidth: v }), v)),
+          ...['a://{path}', 'b://{path}'].map(v => sw.evaluate(v => Markloupe.saveSettings({ editorUrl: v }), v)),
         ])
         const s = await local()
-        assert.ok([1.6, 1.65, 1.75].includes(s.lineHeight) && [17, 18].includes(s.fontSize), JSON.stringify([s.lineHeight, s.fontSize]))
-        assert.equal(await pop.evaluate(() => Markloupe.saveSettings({ fontSize: 16 }).then(n => n.fontSize)), 16, '回傳寫入後的設定')
+        assert.ok([270, 280, 290].includes(s.tocWidth) && ['a://{path}', 'b://{path}'].includes(s.editorUrl), JSON.stringify([s.tocWidth, s.editorUrl]))
+        assert.equal(await pop.evaluate(() => Markloupe.saveSettings({ tocWidth: 300 }).then(n => n.tocWidth)), 300, '回傳寫入後的設定')
       } finally {
         await pop.close()
       }
@@ -2919,7 +2922,7 @@ try {
       await sw.evaluate(async () => {
         await Markloupe.setSyncEnabled(true)
         await chrome.storage.sync.clear()
-        await Markloupe.saveSettings({ lineHeight: 1.7, tocWidth: 260, editorUrl: '', customCss: '', fontSize: 16 })
+        await Markloupe.saveSettings({ lineHeight: 1.7, tocWidth: 260, editorUrl: '', customCss: '' })
       })
     }
   })

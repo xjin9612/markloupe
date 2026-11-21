@@ -223,12 +223,28 @@ Markloupe.migrateLegacyStorage = async function () {
     return
   }
 
+  // storage.sync 每分鐘最多寫入 120 次：上傳至少間隔 SYNC_GAP，期間的連續修改（連按放大、切換主題）合併成一次，上傳當時的設定
+  const SYNC_GAP = 1000
+  let lastPush = 0
+  let pushTimer = 0
+  const push = async () => {
+    lastPush = Date.now()
+    if (await Markloupe.isSyncEnabled()) await Markloupe.pushSync(await Markloupe.loadSettings()).catch(() => {}) // 同步失敗不影響本機
+  }
+
   Markloupe.saveSettings = patch =>
     serial(async () => {
       const current = await Markloupe.loadSettings()
       const next = { ...current, ...patch }
       await chrome.storage.local.set({ [Markloupe.SETTINGS_KEY]: next })
-      if (await Markloupe.isSyncEnabled()) await Markloupe.pushSync(next).catch(() => {}) // 同步失敗（例如超過寫入次數）不影響本機
+      const wait = lastPush + SYNC_GAP - Date.now()
+      if (wait <= 0) await push()
+      else if (!pushTimer) {
+        pushTimer = setTimeout(() => {
+          pushTimer = 0
+          serial(push)
+        }, wait)
+      }
       return next
     })
   const pull = Markloupe.pullSync
