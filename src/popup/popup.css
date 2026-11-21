@@ -89,6 +89,8 @@ textarea { resize: vertical; }
 .cc-cell input[type=text][aria-invalid=true] { border-color: var(--danger); }
 .cc-warning { color: var(--warn); }
 .settings-file { display: flex; gap: 6px; }
+.docx-template { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#docx-template-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 /* 釘選與最近開過的文件 */
 .recent-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .recent-item { display: flex; align-items: center; gap: 2px; }

@@ -480,6 +480,33 @@
   "popupTitle": {
     "message": "Markloupe 设置"
   },
+  "docxTemplate": {
+    "message": "Word 模板"
+  },
+  "docxTemplateNone": {
+    "message": "未使用"
+  },
+  "docxTemplatePick": {
+    "message": "选择模板…"
+  },
+  "docxTemplateRemove": {
+    "message": "不使用模板"
+  },
+  "docxTemplateHint": {
+    "message": "套用模板中的样式（正文、标题、代码等的字体、大小、颜色与间距）。模板没有的样式按上方设置。模板只存在这台电脑，不同步。"
+  },
+  "docxTemplateSaved": {
+    "message": "已套用模板 $1"
+  },
+  "docxTemplateInvalid": {
+    "message": "无法读取：请选择 Word 文档（.docx）或模板（.dotx）"
+  },
+  "docxTemplateTooLarge": {
+    "message": "模板太大，无法读取"
+  },
+  "docxTemplateNoStyles": {
+    "message": "这个文件没有 Word 样式"
+  },
   "secRecent": {
     "message": "固定与最近打开的文档"
   },

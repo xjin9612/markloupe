@@ -7,7 +7,7 @@ import { readFileSync, mkdtempSync, writeFileSync, copyFileSync, mkdirSync, read
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { inflateRawSync } from 'node:zlib'
+import { deflateRawSync, inflateRawSync } from 'node:zlib'
 import assert from 'node:assert/strict'
 
 // 以 require 解析，方便使用全域安裝的 playwright
@@ -2915,6 +2915,98 @@ try {
     } finally {
       await dp.close()
       await sw.evaluate(b => Markloupe.saveSettings(b), before)
+    }
+  })
+  await check('匯出 Word：套用 Word 範本的樣式與佈景主題（依樣式名稱對應本地化的 styleId）；不是範本的檔案不接受', async () => {
+    // 模擬中文版 Word 的範本：內文的 styleId 是 a、標題 1 是 1；清單樣式帶有範本自己的編號
+    const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    const stylesXml =
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="${W}">` +
+      '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi"/></w:rPr></w:rPrDefault></w:docDefaults>' +
+      '<w:style w:type="paragraph" w:default="1" w:styleId="a"><w:name w:val="Normal"/><w:rPr><w:sz w:val="22"/></w:rPr></w:style>' +
+      '<w:style w:type="paragraph" w:styleId="1"><w:name w:val="heading 1"/><w:basedOn w:val="a"/><w:rPr><w:color w:val="C00000"/><w:sz w:val="40"/></w:rPr></w:style>' +
+      '<w:style w:type="paragraph" w:styleId="ListBullet"><w:name w:val="List Bullet"/><w:basedOn w:val="a"/><w:pPr><w:numPr><w:numId w:val="7"/></w:numPr></w:pPr></w:style>' +
+      '</w:styles>'
+    const themeXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="T"><a:themeElements/></a:theme>'
+    const crcTable = Array.from({ length: 256 }, (_, n) => {
+      let c = n
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+      return c >>> 0
+    })
+    const crc32 = buf => (buf.reduce((c, b) => crcTable[(c ^ b) & 0xff] ^ (c >>> 8), 0xffffffff) ^ 0xffffffff) >>> 0
+    const makeZip = files => {
+      const locals = []
+      const central = []
+      let offset = 0
+      for (const [name, text] of Object.entries(files)) {
+        const raw = Buffer.from(text)
+        const data = deflateRawSync(raw)
+        const n = Buffer.from(name)
+        const head = Buffer.alloc(30)
+        head.writeUInt32LE(0x04034b50, 0); head.writeUInt16LE(20, 4); head.writeUInt16LE(8, 8)
+        head.writeUInt32LE(crc32(raw), 14); head.writeUInt32LE(data.length, 18); head.writeUInt32LE(raw.length, 22); head.writeUInt16LE(n.length, 26)
+        const dir = Buffer.alloc(46)
+        dir.writeUInt32LE(0x02014b50, 0); dir.writeUInt16LE(20, 4); dir.writeUInt16LE(20, 6); dir.writeUInt16LE(8, 10)
+        dir.writeUInt32LE(crc32(raw), 16); dir.writeUInt32LE(data.length, 20); dir.writeUInt32LE(raw.length, 24); dir.writeUInt16LE(n.length, 28); dir.writeUInt32LE(offset, 42)
+        locals.push(head, n, data)
+        central.push(dir, n)
+        offset += 30 + n.length + data.length
+      }
+      const cd = Buffer.concat(central)
+      const end = Buffer.alloc(22)
+      end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(central.length / 2, 8); end.writeUInt16LE(central.length / 2, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16)
+      return Buffer.concat([...locals, cd, end])
+    }
+    const dir = join(work, 'docx-template')
+    mkdirSync(dir, { recursive: true })
+    const tplFile = join(dir, '公司範本.dotx')
+    writeFileSync(tplFile, makeZip({ '[Content_Types].xml': '<Types/>', 'word/styles.xml': stylesXml, 'word/theme/theme1.xml': themeXml }))
+    writeFileSync(join(dir, 'not-docx.docx'), 'plain text')
+    writeFileSync(join(dir, 'no-styles.docx'), makeZip({ 'word/document.xml': '<x/>' }))
+    const stored = () => sw.evaluate(async () => (await chrome.storage.local.get(Markloupe.DOCX_TEMPLATE_KEY))[Markloupe.DOCX_TEMPLATE_KEY])
+    const pop = await ctx.newPage()
+    try {
+      await pop.goto(`chrome-extension://${sw.url().split('/')[2]}/src/popup/popup.html`)
+      await pop.waitForFunction(() => document.querySelector('#docx-template-name').textContent === '未使用')
+      for (const [f, msg] of [['not-docx.docx', '無法讀取'], ['no-styles.docx', '這個檔案沒有 Word 樣式']]) {
+        await pop.setInputFiles('#docx-template-file', join(dir, f))
+        await pop.waitForFunction(m => document.querySelector('#status').textContent.startsWith(m), msg)
+      }
+      assert.equal(await stored(), undefined, '不合格的檔案不儲存')
+      await pop.setInputFiles('#docx-template-file', tplFile)
+      await pop.waitForFunction(() => document.querySelector('#docx-template-name').textContent === '公司範本.dotx')
+      const tpl = await stored()
+      assert.equal(tpl.styles, stylesXml)
+      assert.equal(tpl.theme, themeXml)
+      assert.equal(await pop.$eval('#docx-template-remove', b => b.hidden), false, '可以停用範本')
+
+      const md = join(dir, 'with-template.md')
+      writeFileSync(md, '# 標題\n\n內文 `code`\n\n```\nx\n```\n')
+      const dp = await openDoc(pathToFileURL(md).href)
+      try {
+        await dp.bringToFront()
+        const { xml, raw, parts } = await exportDocx(dp)
+        const styles = raw('word/styles.xml')
+        const doc = xml('word/document.xml')
+        assert.match(doc, /<w:pStyle w:val="1"\/>/, '標題改用範本的 styleId')
+        assert.ok(!doc.includes('w:val="Heading1"'))
+        assert.match(styles, /w:styleId="1"><w:name w:val="heading 1"\/>.*?<w:color w:val="C00000"\/>/, '範本的標題樣式')
+        assert.equal((styles.match(/<w:name w:val="heading 1"\/>/g) || []).length, 1, '同名樣式只留範本的')
+        assert.match(styles, /w:styleId="MLCode"><w:name w:val="Code"\/><w:basedOn w:val="a"\/>/, '範本沒有的樣式加進來，basedOn 指向範本的內文')
+        assert.ok(!styles.includes('<w:numPr>'), '拿掉範本樣式的清單編號')
+        assert.equal(raw('word/theme/theme1.xml'), themeXml)
+        assert.match(raw('[Content_Types].xml'), /PartName="\/word\/theme\/theme1\.xml"/)
+        assert.match(raw('word/_rels/document.xml.rels'), /relationships\/theme" Target="theme\/theme1\.xml"/)
+        assert.ok(parts['word/numbering.xml'])
+      } finally {
+        await dp.close()
+      }
+      await pop.$eval('#docx-template-remove', b => b.click()) // 在收合的「匯出 Word」區塊裡
+      await pop.waitForFunction(() => document.querySelector('#docx-template-name').textContent === '未使用')
+      assert.equal(await stored(), undefined)
+    } finally {
+      await pop.close()
+      await sw.evaluate(() => chrome.storage.local.remove(Markloupe.DOCX_TEMPLATE_KEY))
     }
   })
   await check('popup 匯出 Word：清單外的字型名稱顯示為自訂並可修改', async () => {

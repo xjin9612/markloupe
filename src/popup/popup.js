@@ -500,9 +500,10 @@
    * 全螢幕狀態先取好：按下按鈕後才等待查詢，檔案選擇視窗可能因為已不是使用者操作而開不起來
    */
   const importPage = new URLSearchParams(location.search).has('import')
+  const templatePage = new URLSearchParams(location.search).has('template')
   const mac = /mac/i.test(navigator.userAgentData?.platform ?? navigator.platform)
   let importInTab = false
-  if (mac && !importPage) chrome.windows.getCurrent().then(w => (importInTab = w.state === 'fullscreen'))
+  if (mac && !importPage && !templatePage) chrome.windows.getCurrent().then(w => (importInTab = w.state === 'fullscreen'))
   $('#settings-import').addEventListener('click', () => {
     if (importInTab) chrome.tabs.create({ url: chrome.runtime.getURL('src/popup/popup.html?import') })
     else $('#settings-file').click()
@@ -527,6 +528,41 @@
     fill({ ...(await Markloupe.loadSettings()), syncEnabled: await Markloupe.isSyncEnabled() })
     say(t(result.skipped ? 'importPartial' : 'importDone', String(Object.keys(result.patch).length), String(result.skipped)), 4000)
   })
+
+  /* ---------- 匯出 Word 的範本：只存在這台電腦 ---------- */
+  async function showTemplate() {
+    const tpl = (await chrome.storage.local.get(Markloupe.DOCX_TEMPLATE_KEY))[Markloupe.DOCX_TEMPLATE_KEY]
+    $('#docx-template-name').textContent = tpl ? tpl.name : t('docxTemplateNone')
+    $('#docx-template-name').title = tpl?.name || ''
+    $('#docx-template-remove').hidden = !tpl
+  }
+  $('#docx-template-pick').addEventListener('click', () => {
+    if (importInTab) chrome.tabs.create({ url: chrome.runtime.getURL('src/popup/popup.html?template') })
+    else $('#docx-template-file').click()
+  })
+  if (templatePage) {
+    $('#docx-template-pick').closest('details').open = true
+    $('#docx-template-pick').scrollIntoView({ block: 'center' })
+    $('#docx-template-pick').focus()
+  }
+  $('#docx-template-file').addEventListener('change', async e => {
+    const file = e.target.files[0]
+    e.target.value = '' // 同一個檔案可以再選一次
+    if (!file) return
+    try {
+      const tpl = await Markloupe.readDocxTemplate(file)
+      await chrome.storage.local.set({ [Markloupe.DOCX_TEMPLATE_KEY]: tpl })
+      say(t('docxTemplateSaved', tpl.name), 4000)
+    } catch (err) {
+      say(t(err.message.startsWith('docxTemplate') ? err.message : 'docxTemplateInvalid'), 4000)
+    }
+    showTemplate()
+  })
+  $('#docx-template-remove').addEventListener('click', async () => {
+    await chrome.storage.local.remove(Markloupe.DOCX_TEMPLATE_KEY)
+    showTemplate()
+  })
+  showTemplate()
 
   Markloupe.bindWebAccess($('#web-access'))
 

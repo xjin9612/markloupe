@@ -273,6 +273,17 @@
           <option value="Letter">Letter</option>
         </select>
       </label>
+      <!-- Word 範本：只存在這台電腦，不同步 -->
+      <div class="docx-template">
+        <span data-i18n="docxTemplate"></span>
+        <span id="docx-template-name" class="hint"></span>
+      </div>
+      <div class="settings-file">
+        <button type="button" id="docx-template-pick" data-i18n="docxTemplatePick"></button>
+        <button type="button" id="docx-template-remove" data-i18n="docxTemplateRemove" hidden></button>
+        <input type="file" id="docx-template-file" accept=".docx,.dotx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.wordprocessingml.template" hidden>
+      </div>
+      <p class="hint" data-i18n="docxTemplateHint"></p>
     </div>
   </details>
 
@@ -290,6 +301,7 @@
   <script src="../shared/i18n.js"></script>
   <script src="../content/icons.js"></script>
   <script src="../shared/web-access.js"></script>
+  <script src="docx-template.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
