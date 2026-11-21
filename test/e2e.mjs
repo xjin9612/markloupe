@@ -787,7 +787,8 @@ try {
       // 網址改成 #rollback：一般的章節照樣標示
       await tp.evaluate(() => (location.hash = '#rollback'))
       await activeIs('Rollback')
-      // 自己捲到底（沒有跳轉目標）：標示畫面內最後一個標題
+      // 自己捲到底（沒有跳轉目標）：標示畫面內最後一個標題；滾輪要送到最前面的分頁
+      await tp.bringToFront()
       await tp.mouse.move(800, 500)
       await tp.mouse.wheel(0, 5000)
       await activeIs('Glossary')
