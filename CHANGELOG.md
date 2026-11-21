@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-21
+
 ### Added
 - **Image** on a Mermaid diagram copies it as a PNG, or downloads it as a PNG or SVG file. Images always use light colors, like Word export, and the PNG has a solid background. Copying needs an https page or a local file
 - In local documents, links to files or folders that do not exist get a wavy underline and a tooltip. Markloupe checks only the names in the linked folders and never reads those files. Turn it off in the popup → **Layout defaults**
@@ -232,7 +234,8 @@ First public release.
 ### Security
 - Allow-list HTML sanitizer, minimal permissions (`storage` only), no remote code
 
-[Unreleased]: https://github.com/xjin9612/markloupe/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/xjin9612/markloupe/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/xjin9612/markloupe/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/xjin9612/markloupe/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/xjin9612/markloupe/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/xjin9612/markloupe/compare/v1.7.0...v1.7.1
