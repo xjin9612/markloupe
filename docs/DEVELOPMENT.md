@@ -334,17 +334,20 @@ chrome.exe --remote-debugging-port=9222 --user-data-dir="$env:TEMP\markloupe-cdp
 
 商店項目已啟用 [Verified CRX uploads](https://developer.chrome.com/docs/webstore/update)：只接受以開發者私鑰簽署的 CRX，上傳 zip 或其他金鑰簽的 CRX 都會被拒絕。帳號被盜也無法發布新版。
 
-Release 完成後，在 WSL 或 macOS／Linux 執行（需要 node 22 與已登入的 `gh`）：
+Release 完成後，在打標籤的那份 repo 執行（WSL 或 macOS／Linux，需要 node 22 與已登入的 `gh`）：
 
 ```bash
 node scripts/crx.mjs sign vX.Y.Z --key <私鑰.pem>
 ```
 
-1. 下載 Release 的 `markloupe-vX.Y.Z-store.zip`。
-2. 以 `gh attestation verify` 驗證建置來源證明，限定來自 `refs/tags/vX.Y.Z` 的 `release.yml`。
-3. 確認 zip 中 `manifest.json` 的版本是 X.Y.Z。
-4. 詢問私鑰密碼，確認私鑰與 `docs/store/markloupe-crx.pub.pem` 是同一對。
-5. 把 zip 原封不動簽成 `dist/markloupe-vX.Y.Z.crx`，印出 SHA-256。
+1. 讀取本機標籤 `vX.Y.Z` 指向的 commit。
+2. 下載 Release 的 `markloupe-vX.Y.Z-store.zip`，讀進記憶體並計算 SHA-256。
+3. 以 `gh attestation verify` 驗證建置來源證明：來自 `refs/tags/vX.Y.Z` 與上述 commit 的 `release.yml`，且證明的對象就是這份 zip。遠端標籤被刪除重推到其他 commit 時，驗證失敗。
+4. 確認 zip 中 `manifest.json` 的版本是 X.Y.Z。
+5. 詢問私鑰密碼，確認私鑰與 `docs/store/markloupe-crx.pub.pem` 是同一對。
+6. 把 zip 原封不動簽成 `dist/markloupe-vX.Y.Z.crx`，印出 SHA-256。
+
+任一步驗證失敗就刪除下載的 zip，不簽署。
 
 在開發人員資訊主頁的 **Package** → **Upload New Package** 上傳這個 CRX。腳本印出的 CRX ID 由簽署金鑰算出，與商店項目的 ID 不同。商店驗證簽章後，會以原本的金鑰重新簽署，項目 ID 不變。
 
