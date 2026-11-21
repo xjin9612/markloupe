@@ -420,7 +420,7 @@ const TASK_LINE_RE = /^((?:[ \t]*>)*[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[)([ xX])(
  * @param {{line:number, from:' '|'x', to:' '|'x', hash:string}} msg
  *   from：頁面認為目前的狀態；hash：頁面持有的原文 SHA-256，用來偵測檔案是否已被其他地方修改
  * @returns {{status:'ok'|'no-root'|'permission'|'ambiguous'|'conflict'|'not-utf8'|'unsupported'|'error', text?:string, root?:string, path?:string}}
- *   no-root：授權資料夾中沒有這個路徑，或同路徑的檔案內容與頁面不同（是別處的同名檔案）
+ *   no-root：授權資料夾中沒有這個路徑，或同路徑的是別處的同名檔案（內容與頁面不同，或寫入後頁面所在的檔案沒變）
  *   ambiguous：多個授權資料夾都有內容相同的這個檔案，無法判斷是哪一份；path：寫入的檔案（授權資料夾名稱起算）
  */
 async function toggleTask(msg, sender) {
@@ -445,23 +445,27 @@ async function toggleTask(msg, sender) {
   if (!granted.length) return { status: 'permission', root: candidates[0].root.handle.name }
 
   // 授權資料夾只以名稱對應到網址路徑，可能對到別處的同名檔案（例如授權 D:\notes，開的是 E:\backup\notes\todo.md）：
-  // 與頁面實際所在的檔案內容一致的才是同一個檔案
-  const read = async c => new Uint8Array(await (await c.file.getFile()).arrayBuffer())
+  // 與頁面實際所在的檔案內容一致的才可能是同一個檔案，寫入後再確認頁面所在的檔案確實變了
+  const read = async c => {
+    const file = await c.file.getFile()
+    return { file, bytes: new Uint8Array(await file.arrayBuffer()) }
+  }
+  const readPage = async () => new Uint8Array(await (await fetch(url, { cache: 'no-store' })).arrayBuffer())
   let pageBytes
   try {
-    pageBytes = new Uint8Array(await (await fetch(url, { cache: 'no-store' })).arrayBuffer())
+    pageBytes = await readPage()
   } catch (err) {
     return { status: 'error', error: `${err.name}: ${err.message}` }
   }
   const same = []
   for (const c of granted) {
-    const b = await read(c)
-    if (sameBytes(b, pageBytes)) same.push([c, b])
+    const r = await read(c)
+    if (sameBytes(r.bytes, pageBytes)) same.push([c, r])
   }
   if (!same.length) return { status: 'no-root' }
   // 兩份內容完全相同的副本：無法確定是哪一個檔案，不寫入
   if (same.length > 1) return { status: 'ambiguous' }
-  const [found, bytes] = same[0]
+  const [found, { file: before, bytes }] = same[0]
   const hasBom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
   let text
   try {
@@ -481,8 +485,26 @@ async function toggleTask(msg, sender) {
 
   lines[msg.line] = m[1] + msg.to + m[3] + line.slice(m[0].length)
   const updated = lines.join('')
-  const writable = await found.file.createWritable()
-  await writable.write((hasBom ? '\uFEFF' : '') + updated)
-  await writable.close()
+  // 讀檔之後又被改過（例如編輯器剛存檔）：不以舊內容覆寫
+  const now = await found.file.getFile()
+  if (now.lastModified !== before.lastModified || now.size !== before.size) return { status: 'conflict', text: await now.text() }
+  await writeFile(found.file, (hasBom ? '\uFEFF' : '') + updated)
+  // 頁面所在的檔案沒變：寫到的是別處內容相同的同名檔案，還原它
+  let after
+  try {
+    after = await readPage()
+  } catch {
+    after = pageBytes
+  }
+  if (sameBytes(after, pageBytes)) {
+    await writeFile(found.file, bytes)
+    return { status: 'no-root' }
+  }
   return { status: 'ok', text: updated, path: found.path }
+}
+
+async function writeFile(handle, data) {
+  const writable = await handle.createWritable()
+  await writable.write(data)
+  await writable.close()
 }

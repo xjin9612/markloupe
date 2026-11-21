@@ -3538,7 +3538,8 @@ try {
   /* ---------- 任務勾選寫回 ---------- */
   // 資料夾選擇視窗無法自動化：改用 OPFS（瀏覽器私有檔案系統）裡同名的「work」資料夾當作已授權資料夾，
   // 網址路徑中的 work/ 會對應到它，寫回的結果從 OPFS 讀出驗證。授權視窗本身需手動測試。
-  // 背景程式只寫入內容與頁面所在檔案相同的那一份：每次寫回後以 opfs.mirror() 把 OPFS 的內容同步到實體檔，兩者才會一致
+  // 背景程式寫入前後都會讀頁面所在的檔案確認是同一個檔案：背景程式讀 taskDir 下的檔案時改讀 OPFS 的 pageDir（self.mockPageDir），
+  // 頁面本身仍由實體檔載入，所以每次寫回後以 opfs.mirror() 把 OPFS 的內容同步到實體檔
   await sw.evaluate(() => Markloupe.saveSettings({ autoRefresh: 'off' })) // 避免自動更新以實體檔覆蓋 OPFS 的寫回結果
   const tasksSrc = readFileSync(join(root, 'test/fixtures/tasks.md'), 'utf8')
   const crlfSrc = tasksSrc.replace(/\n/g, '\r\n')
@@ -3549,6 +3550,23 @@ try {
   writeFileSync(join(taskDir, 'tasks.md'), tasksSrc)
   writeFileSync(join(taskDir, 'tasks-crlf.md'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(crlfSrc)]))
   writeFileSync(join(taskDir, 'cr.md'), crSrc)
+  await sw.evaluate(prefix => {
+    const real = self.fetch
+    self.fetch = async (input, init) => {
+      const u = String(input)
+      if (self.mockPageDir && u.startsWith(prefix)) {
+        try {
+          let dir = await navigator.storage.getDirectory()
+          for (const n of self.mockPageDir) dir = await dir.getDirectoryHandle(n)
+          return new Response(await (await dir.getFileHandle(decodeURIComponent(u.slice(prefix.length)))).getFile())
+        } catch {
+          // OPFS 沒有這個檔案：讀實體檔
+        }
+      }
+      return real(input, init)
+    }
+    self.mockPageDir = ['work']
+  }, pathToFileURL(taskDir).href + '/')
   const opfs = {
     async setup() {
       await sw.evaluate(async ([a, b, c]) => {
@@ -3651,6 +3669,33 @@ try {
     await opfs.mirror()
     assert.ok((await opfs.read('tasks.md')).text.includes('- [x] 編輯器新增的項目'))
   })
+  await check('勾選寫回：讀檔之後、寫入之前檔案又被修改時不寫入', async () => {
+    const url = pathToFileURL(join(taskDir, 'tasks.md')).href
+    const r = await sw.evaluate(async u => {
+      const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('work')
+      const fh = await dir.getFileHandle('tasks.md')
+      const text = await (await fh.getFile()).text()
+      const line = Markloupe.splitLines(text).findIndex(l => l.startsWith('- [x] 第一項'))
+      const hash = await Markloupe.sha256(text)
+      // 背景程式讀檔後會計算雜湊：在這一步模擬編輯器存檔
+      const orig = Markloupe.sha256
+      Markloupe.sha256 = async s => {
+        Markloupe.sha256 = orig
+        const w = await fh.createWritable()
+        await w.write(text + '- [ ] 剛存檔的項目\n')
+        await w.close()
+        return orig(s)
+      }
+      const res = await toggleTask({ line, from: 'x', to: ' ', hash }, { url: u })
+      return { status: res.status, conflictText: res.text, file: await (await fh.getFile()).text(), text }
+    }, url)
+    assert.equal(r.status, 'conflict')
+    assert.equal(r.file, r.text + '- [ ] 剛存檔的項目\n', '保留編輯器存的內容')
+    assert.equal(r.conflictText, r.file)
+    await opfs.mirror()
+    await tp.reload()
+    await tp.waitForSelector('.ml-task-box')
+  })
   await check('勾選寫回：保留 CRLF 與 BOM', async () => {
     const cp = await openDoc(pathToFileURL(join(taskDir, 'tasks-crlf.md')).href)
     await cp.locator('.task-list-item', { hasText: '有序清單任務' }).locator('input').click()
@@ -3736,7 +3781,7 @@ try {
       await p4.close()
     }
   })
-  await check('勾選寫回：多個授權資料夾都有這個路徑時，寫入內容與頁面相同的那一份；分不出來或只有別處的同名檔案就不寫', async () => {
+  await check('勾選寫回：多個授權資料夾都有這個路徑時，寫入內容與頁面相同的那一份；分不出來或只有別處的同名檔案就不寫，寫錯時還原', async () => {
     // OPFS：<暫存目錄名>/work/tasks.md（與頁面相同）、copy/work/tasks.md（另一份同名檔案）
     // 授權 <暫存目錄名>、<暫存目錄名>/work（巢狀，指向同一個檔案）與 copy/work
     const base = work.split(/[\\/]/).pop()
@@ -3772,6 +3817,7 @@ try {
       await pg.waitForFunction(t => document.querySelector('.ml-toast.show')?.textContent.startsWith(t), expect)
     }
     try {
+      await sw.evaluate(b => (self.mockPageDir = [b, 'work']), base)
       const other = tasksSrc.replace('第二項', '另一份檔案')
       await setup(other)
       const p5 = await openDoc(pathToFileURL(join(taskDir, 'tasks.md')).href)
@@ -3793,9 +3839,18 @@ try {
       assert.equal(await p7.locator('.task-list-item', { hasText: '另一份檔案' }).count(), 0, '頁面維持原內容')
       await p7.close()
       assert.equal(await readOpfs(['copy', 'work', 'tasks.md']), other, '別處的同名檔案不動')
+      // 只授權了別處內容相同的同名檔案：寫入後頁面所在的檔案沒變，還原那一份並提示未授權
+      await setup(tasksSrc, true)
+      const p8 = await openDoc(pathToFileURL(join(taskDir, 'tasks.md')).href)
+      await click(p8, '此檔案所在的資料夾尚未授權')
+      assert.equal(await p8.locator('.task-list-item', { hasText: '第一項' }).first().locator('input').isChecked(), false, '勾選框維持原狀')
+      await p8.close()
+      assert.equal(await readOpfs(['copy', 'work', 'tasks.md']), tasksSrc, '別處的同名檔案已還原')
+      assert.equal(await readOpfs([base, 'work', 'tasks.md']), tasksSrc)
     } finally {
       // 回到前一項檢查之後的狀態：沒有授權資料夾
       await sw.evaluate(async () => {
+        self.mockPageDir = ['work']
         for (const r of await Markloupe.Roots.list()) await Markloupe.Roots.remove(r.id)
       })
     }

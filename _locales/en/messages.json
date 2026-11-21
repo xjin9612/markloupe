@@ -261,6 +261,9 @@
   "taskConflict": {
     "message": "The file was changed elsewhere and has been reloaded. Click again."
   },
+  "taskUndoStale": {
+    "message": "This line has changed and can no longer be undone"
+  },
   "taskReadonlyRemote": {
     "message": "Only tasks in local files can be saved"
   },

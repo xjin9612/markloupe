@@ -261,6 +261,9 @@
   "taskConflict": {
     "message": "文件已在其他地方修改，已重新加载，请再点一次"
   },
+  "taskUndoStale": {
+    "message": "这一行已被修改，无法撤销"
+  },
   "taskReadonlyRemote": {
     "message": "只有本机文件的任务可以勾选写回"
   },
