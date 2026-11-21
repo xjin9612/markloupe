@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-21
+
 ### Added
 - The sidebar's new **Recent** tab (in local documents) and the popup list the last 20 documents you opened and up to 20 you pin, so you can open them again in one click. Incognito windows are not recorded, and the list is never synced. Turn it off or clear it in the popup
 - **Word template** (popup → **Word export**): choose a Word document or template, and exported Word documents use its styles for body text, headings and the rest. Styles are matched by name, so templates made with localized Word work too. Styles the template lacks keep Markloupe's settings. The template stays on this computer
@@ -239,7 +241,8 @@ First public release.
 ### Security
 - Allow-list HTML sanitizer, minimal permissions (`storage` only), no remote code
 
-[Unreleased]: https://github.com/xjin9612/markloupe/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/xjin9612/markloupe/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/xjin9612/markloupe/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/xjin9612/markloupe/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/xjin9612/markloupe/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/xjin9612/markloupe/compare/v1.7.1...v1.8.0
