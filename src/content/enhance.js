@@ -22,8 +22,9 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     const headings = Array.from(article.querySelectorAll('h1, h2, h3, h4, h5, h6'))
     for (const el of headings) {
       const text = el.textContent.trim()
-      // 原文已自帶 id（如 HTML 寫的）就沿用
+      // 原文已自帶 id（如 HTML 寫的）就沿用；ml- 與 dml- 開頭的是介面與 mermaid 用的 id，加上前綴
       let id = el.id || slugify(text)
+      if (/^d?ml-/i.test(id)) id = `h-${id}`
       if (used.has(id)) {
         let n = used.get(id)
         while (used.has(`${id}-${n}`)) n++
@@ -290,9 +291,11 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     let ref = null
     let timer = 0
 
+    // 只取這篇文件腳註區裡的腳註，不複製頁面上其他元素
     const target = a => {
       try {
-        return document.getElementById(decodeURIComponent(a.hash.slice(1)))
+        const el = document.getElementById(decodeURIComponent(a.hash.slice(1)))
+        return el && article.contains(el) && el.closest('.footnotes') ? el : null
       } catch {
         return null
       }

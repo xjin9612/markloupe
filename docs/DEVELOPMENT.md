@@ -126,7 +126,7 @@ flowchart LR
 ```
 
 - **HTML 白名單**（`src/content/sanitize.js`）：保留 `<details>`、`<kbd>`、表格等常用標籤。移除 `<script>`、`<iframe>`、`<svg>`、事件屬性與 `style`（表格對齊除外）。也移除 `javascript:` 與非圖片的 `data:` 連結。
-- **不能借用介面**：文件中的 HTML 不能使用 `ml-` 開頭的 class 與 id，無法蓋出假的提示。`name` 屬性只保留給 `<a>`，防止 DOM clobbering。
+- **不能借用介面**：文件中的 HTML 不能使用 `ml-` 開頭的 class 與 id，無法蓋出假的提示。id 也不能用 mermaid 暫存容器的 `dml-`；標題自動產生的 id 遇到這兩種開頭時加上 `h-`。`name` 屬性只保留給 `<a>`，防止 DOM clobbering。
 - **數學公式**：KaTeX 以 `trust: false` 繪製，停用 `\href`、`\url`、`\includegraphics` 與 `\html…`。巨集展開次數有上限。
 - **Mermaid**：以 `securityLevel: 'strict'` 繪製。標籤經 DOMPurify 過濾，點擊事件停用。`htmlLabels: false` 讓標籤畫成 SVG 文字，圖表裡沒有 `foreignObject` 與任何 HTML 元素。`htmlLabels` 列在 mermaid 的 `secure` 清單，文件內的 `%%{init}%%` 與 front matter 改不了。
 - **程式庫不讓網站探測**：Mermaid 與 KaTeX 用到時才載入，所以列為 web accessible resources。
