@@ -135,6 +135,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       this.applyLive()
       this.applyView()
       this.startRefresh()
+      // 記進 popup 的「最近開過的文件」；是否記錄由 background 依設定與無痕視窗判斷
+      chrome.runtime.sendMessage({ type: 'record-visit', title: document.title }).catch(() => {})
 
       // 工具列寬度與按鈕文字（語系、寬度與字級的數值）都會變：放不下時只顯示圖示
       const fit = Markloupe.rafThrottle(() => this.fitToolbar())

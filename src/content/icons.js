@@ -9,6 +9,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
   /** 每個圖示是一串 [標籤, 屬性]；path 只寫 d 時可直接給字串 */
   const SHAPES = {
     menu: ['M2.5 4h11', 'M2.5 8h11', 'M2.5 12h11'],
+    pin: ['M5.5 2.5h5', 'M6.5 2.5v4L4 9.5h8L9.5 6.5v-4', 'M8 9.5V14'],
     search: [['circle', { cx: 7, cy: 7, r: 4.5 }], 'M10.5 10.5 14 14'],
     close: ['M4 4l8 8', 'M12 4l-8 8'],
     'chevron-right': ['M6 3.5 10.5 8 6 12.5'],

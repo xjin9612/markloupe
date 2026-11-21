@@ -480,6 +480,30 @@
   "popupTitle": {
     "message": "Markloupe settings"
   },
+  "secRecent": {
+    "message": "Pinned and recent documents"
+  },
+  "recentEmpty": {
+    "message": "Markdown documents you open are listed here"
+  },
+  "recentMore": {
+    "message": "$1 more"
+  },
+  "optRecentFiles": {
+    "message": "Remember recently opened documents"
+  },
+  "recentClear": {
+    "message": "Clear recent"
+  },
+  "recentPin": {
+    "message": "Pin"
+  },
+  "recentUnpin": {
+    "message": "Unpin"
+  },
+  "recentRemove": {
+    "message": "Remove from list"
+  },
   "popupEnable": {
     "message": "Enabled"
   },

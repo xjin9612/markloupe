@@ -89,3 +89,16 @@ textarea { resize: vertical; }
 .cc-cell input[type=text][aria-invalid=true] { border-color: var(--danger); }
 .cc-warning { color: var(--warn); }
 .settings-file { display: flex; gap: 6px; }
+/* 釘選與最近開過的文件 */
+.recent-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.recent-item { display: flex; align-items: center; gap: 2px; }
+.recent-open { flex: 1; min-width: 0; display: grid; text-align: left; padding: 3px 6px; border-color: transparent; }
+.recent-open:hover { background: var(--hover); border-color: transparent; }
+.recent-title, .recent-where { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.recent-where { color: var(--muted); font-size: 11px; }
+.recent-item .icon-btn { flex: none; visibility: hidden; }
+.recent-item:is(:hover, :focus-within) .icon-btn, .recent-item .icon-btn[aria-pressed=true] { visibility: visible; }
+.recent-item .icon-btn[aria-pressed=true] { color: var(--accent); }
+.recent-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.link-btn { justify-self: start; padding: 0; border: 0; color: var(--accent); background: none; }
+.link-btn:hover { text-decoration: underline; }

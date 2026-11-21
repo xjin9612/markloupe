@@ -22,6 +22,18 @@
     <button type="button" id="open-details" data-i18n="openSettings"></button>
   </p>
 
+  <!-- 釘選與最近開過的文件：點了在新分頁開啟 -->
+  <section id="recent">
+    <h2 data-i18n="secRecent"></h2>
+    <ul id="recent-list" class="recent-list"></ul>
+    <p id="recent-empty" class="hint" data-i18n="recentEmpty" hidden></p>
+    <button type="button" id="recent-more" class="link-btn" hidden></button>
+    <div class="recent-actions">
+      <label class="check"><input type="checkbox" name="recentFiles"> <span data-i18n="optRecentFiles"></span></label>
+      <button type="button" id="recent-clear" data-i18n="recentClear"></button>
+    </div>
+  </section>
+
   <!-- 常用設定直接顯示，其餘可收合（展開狀態記在本機） -->
   <!-- 介面語言只有 popup 立即套用，不放在「即時套用到所有分頁」的外觀區 -->
   <section>
