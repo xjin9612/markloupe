@@ -87,7 +87,7 @@ Six palettes work with both the light and dark themes: GitHub, sepia, high contr
 
 ### Print, PDF, HTML and Word export
 
-**Print / PDF** prints the whole document in light colors, with every section expanded. The margins show only a page number. **Export** saves what you see as an HTML file or a Word document. **Single file** embeds the images, so the file works on its own when you share it. **Link to images** keeps the file small.
+**Print / PDF** prints the whole document in light colors, with every section expanded. The margins show only a page number. Its menu can also put a table of contents at the start, or print only the section you are reading. **Export** saves what you see as an HTML file or a Word document. **Single file** embeds the images, so the file works on its own when you share it. **Link to images** keeps the file small.
 
 In a **Single file** export, links to local files keep their relative paths, and links to `.md` files point to `.html`. Export the linked documents into the same folder, and the links work between the exported files. Heading anchors match only between files that Markloupe exported. **Link to images** turns local links into absolute `file://` addresses, which work only on your computer.
 
@@ -137,7 +137,7 @@ Add `lang` to the front matter (for example `lang: zh-TW`) to set the document l
 - Interface in English, Traditional Chinese and Simplified Chinese
 
 **Sharing**
-- Print or save as PDF, with sections expanded and only page numbers in the margins
+- Print or save as PDF, with sections expanded and only page numbers in the margins; optionally with a table of contents, or only the current section
 - Export as a Word document with your choice of fonts, size and paper; images and diagrams are embedded, and formulas become editable Word equations
 - Export as HTML with styles, diagrams and math fonts embedded and no scripts. **Single file** also embeds the images. An image on a website is embedded only if that site allows it, or if **Also open .md files on websites** is on. Images that can't be read keep their address, and Markloupe tells you how many
 - The **Copy** menu has two modes. **Copy content** copies the Markdown source with HTML formatting attached, so apps that accept formatted text keep the formatting. **Copy location** copies the path and line range, such as `D:\notes\report.md:142-168 (Causes)` on Windows or `/Users/you/notes/report.md:142-168 (Causes)` on macOS, so you can point an AI tool at the exact lines

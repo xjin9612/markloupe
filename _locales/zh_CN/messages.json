@@ -156,6 +156,27 @@
   "toolPrintTitle": {
     "message": "打印，或在打印对话框选“另存为 PDF”。折叠的段落会展开，并改用浅色以便印在纸上"
   },
+  "printMenu": {
+    "message": "打印"
+  },
+  "printAll": {
+    "message": "打印全部"
+  },
+  "printWithToc": {
+    "message": "打印全部，开头加上目录"
+  },
+  "printSection": {
+    "message": "只打印这一节：$1"
+  },
+  "printSectionNone": {
+    "message": "只打印当前这一节"
+  },
+  "printSectionNoneTitle": {
+    "message": "先滚动到要打印的章节"
+  },
+  "printTocTitle": {
+    "message": "目录"
+  },
   "exportDone": {
     "message": "已导出 $1"
   },

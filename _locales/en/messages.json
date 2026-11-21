@@ -156,6 +156,27 @@
   "toolPrintTitle": {
     "message": "Print, or choose Save as PDF in the print dialog. Folded sections are expanded and colors switch to light for paper"
   },
+  "printMenu": {
+    "message": "Print"
+  },
+  "printAll": {
+    "message": "Print all"
+  },
+  "printWithToc": {
+    "message": "Print all with a table of contents"
+  },
+  "printSection": {
+    "message": "Print this section only: $1"
+  },
+  "printSectionNone": {
+    "message": "Print the current section only"
+  },
+  "printSectionNoneTitle": {
+    "message": "Scroll to the section you want to print first"
+  },
+  "printTocTitle": {
+    "message": "Contents"
+  },
   "exportDone": {
     "message": "Exported $1"
   },

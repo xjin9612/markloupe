@@ -941,7 +941,19 @@ html.markloupe .ml-viewer :focus-visible { outline: 2px solid #fff; outline-offs
   html.markloupe .markdown-body > * { max-width: none !important; }
   html.markloupe .ml-table-scroll { overflow: visible; }
   html.markloupe .markdown-body pre { white-space: pre-wrap; word-break: break-all; }
+  /* 只印一節（列印選單）：要印的節點與通往標題的外層容器以外都不印 */
+  html.markloupe.ml-print-section .markdown-body > :not([data-ml-print-keep], [data-ml-print-path]),
+  html.markloupe.ml-print-section .markdown-body [data-ml-print-path] > :not([data-ml-print-keep], [data-ml-print-path]) { display: none !important; }
 }
+/* 列印用的目錄（列印選單）：只在列印時加進文件，螢幕上不顯示 */
+@media screen { html.markloupe .ml-print-toc { display: none; } }
+html.markloupe .markdown-body .ml-print-toc { break-after: page; }
+html.markloupe .markdown-body .ml-print-toc-title { font-size: 1.5em; font-weight: 600; margin: 0 0 .75em; }
+html.markloupe .markdown-body .ml-print-toc ul { list-style: none; padding-left: 0; }
+html.markloupe .markdown-body .ml-print-toc li { margin: .25em 0; }
+html.markloupe .markdown-body .ml-print-toc .ml-print-toc-l2 { padding-left: 1.5em; }
+html.markloupe .markdown-body .ml-print-toc .ml-print-toc-l3 { padding-left: 3em; }
+html.markloupe .markdown-body .ml-print-toc :is(.ml-print-toc-l4, .ml-print-toc-l5, .ml-print-toc-l6) { padding-left: 4.5em; }
 
 /* ---------- 任務勾選寫回 ---------- */
 html.markloupe .markdown-body input.ml-task-box:not(:disabled) { cursor: pointer; }
