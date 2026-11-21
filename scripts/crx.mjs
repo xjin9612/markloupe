@@ -225,21 +225,42 @@ async function signRelease(tag, keyPath, outDir) {
   const zipPath = join(outDir, zipName)
   rmSync(zipPath, { force: true })
 
+  // 標籤以打標籤的這台電腦為準：遠端的標籤被刪除重推到其他 commit 時，建置來源就對不上
+  let commit
+  try {
+    commit = execFileSync('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    fail(`本機沒有標籤 ${tag}；請在打標籤的 repo 執行`)
+  }
+
   console.log(`下載 ${zipName}`)
   execFileSync('gh', ['release', 'download', tag, '--repo', REPO, '--pattern', zipName, '--dir', outDir], { stdio: 'inherit' })
-  console.log('驗證建置來源證明')
-  try {
-    execFileSync(
-      'gh',
-      ['attestation', 'verify', zipPath, '--repo', REPO, '--source-ref', `refs/tags/${tag}`, '--signer-workflow', `${REPO}/.github/workflows/release.yml`],
-      { stdio: 'inherit' },
-    )
-  } catch {
-    fail(`${zipName} 的建置來源證明驗證失敗，不簽署`)
-  }
+  // 讀進記憶體後只用這一份：驗證的與簽署的是同一份內容
   const zip = readFileSync(zipPath)
+  const digest = createHash('sha256').update(zip).digest('hex')
+  const reject = msg => {
+    rmSync(zipPath, { force: true })
+    fail(msg)
+  }
+  console.log(`驗證建置來源證明（commit ${commit}）`)
+  let attested
+  try {
+    const out = execFileSync(
+      'gh',
+      [
+        'attestation', 'verify', zipPath, '--repo', REPO,
+        '--source-ref', `refs/tags/${tag}`, '--source-digest', commit,
+        '--signer-workflow', `${REPO}/.github/workflows/release.yml`, '--format', 'json',
+      ],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
+    )
+    attested = JSON.parse(out).flatMap(r => r.verificationResult.statement.subject)
+  } catch {
+    reject(`${zipName} 的建置來源證明驗證失敗，不簽署`)
+  }
+  if (!attested.some(s => s.name === zipName && s.digest?.sha256 === digest)) reject(`來源證明中沒有這份 ${zipName}（SHA-256 ${digest}）`)
   const manifest = JSON.parse(zipEntry(zip, 'manifest.json')?.toString('utf8') ?? 'null')
-  if (manifest?.version !== version) fail(`zip 中 manifest.json 的版本是 ${manifest?.version}，不是 ${version}`)
+  if (manifest?.version !== version) reject(`zip 中 manifest.json 的版本是 ${manifest?.version}，不是 ${version}`)
 
   const passphrase = process.env.MARKLOUPE_CRX_PASSPHRASE ?? (await askHidden('私鑰密碼：'))
   let privateKey
