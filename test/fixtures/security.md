@@ -161,6 +161,23 @@ flowchart TD
   click B call alert()
 ```
 
+```mermaid
+%%{init: {"htmlLabels": true, "flowchart": {"htmlLabels": true}}}%%
+flowchart LR
+  A["<div class='ml-toast show' style='position:fixed;inset:0'>以 init 指令開啟 HTML 標籤</div><input class='ml-task-box' data-ml-line='3' type=checkbox>"]
+```
+
+```mermaid
+---
+config:
+  htmlLabels: true
+  flowchart:
+    htmlLabels: true
+---
+flowchart LR
+  A["<b style='color:red'>以 front matter 開啟 HTML 標籤</b>"]
+```
+
 ## 14. 數學公式（KaTeX 以 trust: false 繪製）
 
 連結 $\href{javascript:document.body.dataset.xss='katex-href'}{連結}$、網址 $\url{javascript:alert(1)}$、

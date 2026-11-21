@@ -360,6 +360,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       // 標籤畫成 SVG 文字，不產生 foreignObject：圖表裡不會出現任何 HTML 元素
       htmlLabels: false,
       flowchart: { htmlLabels: false },
+      // 文件內的 %%{init}%% 與 front matter 不能改的設定：mermaid 的預設清單，加上 htmlLabels（各層都擋）
+      secure: ['secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'suppressErrorRendering', 'maxEdges', 'htmlLabels'],
       theme: 'base',
       themeVariables: themeVariables(theme),
       fontFamily: getComputedStyle(wrap).fontFamily,
