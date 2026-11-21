@@ -656,6 +656,8 @@ try {
     await page.locator('.ml-body').click({ position: { x: 5, y: 5 } })
     await page.keyboard.press('/')
     assert.equal(await page.evaluate(() => document.activeElement.classList.contains('ml-toc-search')), true)
+    // 焦點框只畫在外層容器，輸入框本身不再疊一層
+    assert.equal(await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle), 'none')
     assert.equal(await visible(page, '.ml-side-tabs'), false, '搜尋時分頁標籤換成搜尋框')
     try {
       await page.keyboard.type('r')

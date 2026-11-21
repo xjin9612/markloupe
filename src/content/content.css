@@ -80,7 +80,7 @@ html.markloupe .ml-menu :focus-visible {
 }
 /* 搜尋框的外框畫在外層容器上 */
 html.markloupe .ml-side-search:focus-within { box-shadow: 0 0 0 1px var(--accent); }
-html.markloupe .ml-toc-search:focus-visible { outline: none; }
+html.markloupe #ml-root .ml-toc-search:focus-visible { outline: none; }
 
 /* ---------- 按鈕 ---------- */
 html.markloupe .ml-btn {
