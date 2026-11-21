@@ -3149,6 +3149,23 @@ try {
       await fp.close()
     }
   })
+  await check('標題 id 不使用介面保留的 ml- 前綴；腳註預覽只顯示腳註區的內容', async () => {
+    const dir = join(work, 'edge-render')
+    writeFileSync(
+      join(dir, 'ids.md'),
+      ['# ml-mermaid-1', '', '```mermaid', 'flowchart LR', '  A --> B', '```', '', '## dml-mermaid-1', '', '偽造的腳註<sup class="footnote-ref"><a href="#ml-root">1</a></sup>', ''].join('\n'),
+    )
+    const ip = await openDoc(pathToFileURL(join(dir, 'ids.md')).href)
+    try {
+      await ip.waitForSelector('.ml-mermaid-view svg')
+      assert.deepEqual(await ip.$$eval('.markdown-body :is(h1, h2)', els => els.map(e => e.id)), ['h-ml-mermaid-1', 'h-dml-mermaid-1'])
+      await ip.hover('.markdown-body sup.footnote-ref a')
+      await ip.waitForTimeout(600)
+      assert.equal(await ip.locator('.ml-fn-pop').count(), 0)
+    } finally {
+      await ip.close()
+    }
+  })
   await check('Obsidian 語法：[[wikilink]] 連到同資料夾的筆記與標題，![[圖片]] 顯示圖片，提示框可摺疊與自訂標題', async () => {
     const dir = join(work, 'obsidian')
     mkdirSync(dir, { recursive: true })

@@ -72,7 +72,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         cleanClasses(el, allowClass)
         continue
       }
-      if (name === 'id' && RESERVED.test(attr.value)) {
+      // d + 圖表 id（dml-mermaid-1）是 mermaid 繪製時的暫存容器，繪製後會以 id 刪除
+      if (name === 'id' && (RESERVED.test(attr.value) || /^dml-/i.test(attr.value))) {
         el.removeAttribute(attr.name)
         continue
       }
