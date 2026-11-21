@@ -7,6 +7,8 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome/welcome.html') })
   if (reason === 'update') migrateLegacy()
   syncWebScripts()
+  // 新裝置：先套用雲端已有的設定，之後在這台改設定時才不會以預設值蓋掉其他電腦的設定
+  if (reason === 'install') Markloupe.isSyncEnabled().then(on => on && Markloupe.pullSync())
 })
 
 /** 舊名稱 MarkLens 的設定與授權資料夾搬到目前的名稱；具名函式方便測試直接呼叫 */
@@ -92,6 +94,9 @@ function sameBytes(a, b) {
   return true
 }
 
+const POS_LIMIT = 300 // 閱讀位置最多記幾份文件，超過時丟掉最久沒讀的
+let positions = Promise.resolve() // 閱讀位置依序寫入，各分頁同時捲動也不會互相蓋掉
+
 const HANDLERS = {
   /**
    * 代 content script 讀取「它自己所在頁面」的本機檔案
@@ -128,6 +133,33 @@ const HANDLERS = {
   },
 
   'toggle-task': toggleTask,
+
+  /** popup 與閱讀頁的設定寫入（Markloupe.saveSettings、setSyncEnabled）在這裡依序執行 */
+  async 'save-settings'(msg) {
+    if (!msg.value || typeof msg.value !== 'object' || Array.isArray(msg.value)) return { status: 'error', error: 'invalid patch' }
+    return { status: 'ok', value: await Markloupe.saveSettings(msg.value) }
+  },
+  async 'set-sync'(msg) {
+    await Markloupe.setSyncEnabled(msg.value === true)
+    return { status: 'ok' }
+  },
+
+  /** 記住閱讀位置；無痕視窗不記：storage.local 在關閉無痕視窗後仍在 */
+  async 'save-position'(msg, sender) {
+    if (sender.tab?.incognito || !Number.isFinite(msg.y)) return { status: 'ok' }
+    const key = (sender.url || '').split('#')[0]
+    positions = positions.then(async () => {
+      const data = (await chrome.storage.local.get(Markloupe.POS_KEY))[Markloupe.POS_KEY] || {}
+      delete data[key] // 重新插入，讓最近使用的排在最後
+      data[key] = msg.y
+      const keys = Object.keys(data)
+      for (const k of keys.slice(0, Math.max(0, keys.length - POS_LIMIT))) delete data[k]
+      await chrome.storage.local.set({ [Markloupe.POS_KEY]: data })
+    })
+    positions = positions.catch(() => {})
+    await positions
+    return { status: 'ok' }
+  },
 
   /**
    * 側邊欄「檔案」分頁：列出資料夾的 Markdown 與子資料夾（讀取 Chrome 對 file:// 資料夾產生的清單頁）

@@ -105,6 +105,7 @@ Markloupe.SYNC_KEYS = [
 // storage.sync 單一項目上限 8192 bytes（含鍵名），自訂 CSS 另存一項
 Markloupe.SYNC_CSS_KEY = 'markloupe:customCss'
 Markloupe.CUSTOM_CSS_MAX_BYTES = 8000
+Markloupe.POS_KEY = 'markloupe:scroll' // 各文件的閱讀位置：網址 → 捲動位置
 Markloupe.cssBytes = css => new TextEncoder().encode(JSON.stringify(css)).length
 
 Markloupe.isSyncEnabled = async function () {
@@ -142,7 +143,7 @@ Markloupe.isSyncEnabled = async function () {
   }
 
   /** 把其他電腦寫入 storage.sync 的設定合併進本機設定；回傳是否有變更 */
-  Markloupe.pullSync = async function () {
+  async function pullSync() {
     const remote = await chrome.storage.sync.get([Markloupe.SETTINGS_KEY, Markloupe.SYNC_CSS_KEY])
     if (!remote[Markloupe.SETTINGS_KEY] && remote[Markloupe.SYNC_CSS_KEY] === undefined) return false
     if (remote[Markloupe.SETTINGS_KEY]?._from === (await deviceId())) return false
@@ -152,12 +153,15 @@ Markloupe.isSyncEnabled = async function () {
       const v = remote[Markloupe.SETTINGS_KEY]?.[k]
       if (v !== undefined && JSON.stringify(v) !== JSON.stringify(current[k])) patch[k] = v
     }
+    // 本機的自訂 CSS 超過上限時不上傳，雲端留著的是舊版：不拿來蓋掉本機
     const css = remote[Markloupe.SYNC_CSS_KEY]
-    if (typeof css === 'string' && css !== current.customCss) patch.customCss = css
+    const localOnly = Markloupe.cssBytes(current.customCss) > Markloupe.CUSTOM_CSS_MAX_BYTES
+    if (typeof css === 'string' && css !== current.customCss && !localOnly) patch.customCss = css
     if (!Object.keys(patch).length) return false
     await chrome.storage.local.set({ [Markloupe.SETTINGS_KEY]: { ...current, ...patch } })
     return true
   }
+  Markloupe.pullSync = pullSync
 
   /** 開啟同步時：雲端已有設定就套用到這台電腦，沒有就上傳這台的設定 */
   Markloupe.setSyncEnabled = async function (on) {
@@ -165,7 +169,7 @@ Markloupe.isSyncEnabled = async function () {
     if (!on) return
     // 雲端是其他電腦寫的就套用；沒有資料或是這台自己寫的（關閉期間本機可能又改過），上傳這台的設定
     const remote = (await chrome.storage.sync.get(Markloupe.SETTINGS_KEY))[Markloupe.SETTINGS_KEY]
-    if (remote && remote._from !== (await deviceId())) await Markloupe.pullSync()
+    if (remote && remote._from !== (await deviceId())) await pullSync()
     else await Markloupe.pushSync(await Markloupe.loadSettings())
   }
 })()
@@ -198,19 +202,39 @@ Markloupe.migrateLegacyStorage = async function () {
 }
 
 ;(() => {
-  // 同一個執行環境內依序寫入：讀改寫並行時，後寫入的整份設定會蓋掉先寫入的其他鍵
+  // 設定存成 storage.local 裡的一整個物件，讀改寫並行時後寫入的會蓋掉先寫入的其他鍵：
+  // 所有寫入（含套用其他電腦的同步）都在 background 依序執行，popup 與閱讀頁以訊息請 background 寫入
+  const inBackground = typeof ServiceWorkerGlobalScope === 'function' && globalThis instanceof ServiceWorkerGlobalScope
   let queue = Promise.resolve()
-  Markloupe.saveSettings = function (patch) {
-    const run = queue.then(async () => {
+  const serial = fn => {
+    const run = queue.then(fn)
+    queue = run.catch(() => {})
+    return run
+  }
+  const viaBackground = async (type, value) => {
+    const res = await chrome.runtime.sendMessage({ type, value })
+    if (res?.status !== 'ok') throw new Error(res?.error || `${type} failed`)
+    return res.value
+  }
+
+  if (!inBackground) {
+    Markloupe.saveSettings = patch => viaBackground('save-settings', patch)
+    Markloupe.setSyncEnabled = on => viaBackground('set-sync', on)
+    return
+  }
+
+  Markloupe.saveSettings = patch =>
+    serial(async () => {
       const current = await Markloupe.loadSettings()
       const next = { ...current, ...patch }
       await chrome.storage.local.set({ [Markloupe.SETTINGS_KEY]: next })
       if (await Markloupe.isSyncEnabled()) await Markloupe.pushSync(next).catch(() => {}) // 同步失敗（例如超過寫入次數）不影響本機
       return next
     })
-    queue = run.catch(() => {})
-    return run
-  }
+  const pull = Markloupe.pullSync
+  Markloupe.pullSync = () => serial(pull)
+  const setSync = Markloupe.setSyncEnabled
+  Markloupe.setSyncEnabled = on => serial(() => setSync(on))
 })()
 
 Markloupe.nextOf = function (list, current) {
