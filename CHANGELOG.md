@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - The popup lists the documents you opened recently (20 local and 20 web) and the ones you pin, so you can open them again in one click. Incognito windows are not recorded, and the list is never synced. Turn it off or clear it in the popup
+- **Word template** (popup → **Word export**): choose a Word document or template, and exported Word documents use its styles for body text, headings and the rest. Styles are matched by name, so templates made with localized Word work too. Styles the template lacks keep Markloupe's settings. The template stays on this computer
 - **Print / PDF** is now a menu: print everything, print everything with a table of contents at the start, or print only the section you are reading
 
 ## [1.10.0] - 2026-11-21

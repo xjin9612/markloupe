@@ -598,13 +598,24 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     }
 
     files(body, meta) {
-      const notes = this.footnotes.length ? this.footnotesXml() : null
+      let notes = this.footnotes.length ? this.footnotesXml() : null
+      let styles = this.stylesXml()
+      let doc = this.documentXml(body)
+      const theme = this.template?.theme || null
+      if (this.template) {
+        const merged = mergeStyles(styles, this.template.styles)
+        styles = merged.styles
+        const remap = xml => xml.replace(/(<w:(?:pStyle|rStyle|tblStyle) w:val=")([^"]+)(")/g, (m, a, id, b) => (merged.ids.has(id) ? a + esc(merged.ids.get(id)) + b : m))
+        doc = remap(doc)
+        if (notes) notes = remap(notes)
+      }
       const relXml = list => list.map(r => `<Relationship Id="${r.id}" Type="${r.type}" Target="${esc(r.target)}"${r.external ? ' TargetMode="External"' : ''}/>`).join('')
       const rels = [
         `<Relationship Id="rId1" Type="${REL}/styles" Target="styles.xml"/>`,
         `<Relationship Id="rId2" Type="${REL}/numbering" Target="numbering.xml"/>`,
         `<Relationship Id="rId3" Type="${REL}/settings" Target="settings.xml"/>`,
         notes ? `<Relationship Id="rId4" Type="${REL}/footnotes" Target="footnotes.xml"/>` : '',
+        theme ? `<Relationship Id="rId5" Type="${REL}/theme" Target="theme/theme1.xml"/>` : '',
         relXml(this.rels),
       ]
       const relsPart = list => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list}</Relationships>`
@@ -621,6 +632,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
             '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
             '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' +
             (notes ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' : '') +
+            (theme ? '<Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>' : '') +
             '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
             '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>',
         },
@@ -639,8 +651,9 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
           // 宣告腳註的分隔線（footnotes.xml 的 id -1、0）
           data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="${NS.w}">${notes ? '<w:footnotePr><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr>' : ''}<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`,
         },
-        { name: 'word/document.xml', data: this.documentXml(body) },
-        { name: 'word/styles.xml', data: this.stylesXml() },
+        { name: 'word/document.xml', data: doc },
+        { name: 'word/styles.xml', data: styles },
+        ...(theme ? [{ name: 'word/theme/theme1.xml', data: theme }] : []),
         { name: 'word/numbering.xml', data: this.numberingXml() },
         {
           name: 'docProps/core.xml',
@@ -714,10 +727,47 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
   }
 
   /**
+   * 套用 Word 範本的樣式：範本有同名的樣式（依 w:name 對應，例如 heading 1、Code）就用範本的，沒有的用 Markloupe 的。
+   * 範本的 styleId 可能是本地化的（中文版 Word 的標題 1 可能是 1），文件中引用的樣式代號依回傳的 ids 改寫
+   * @returns {{styles: string, ids: Map<string, string>}} ids：Markloupe 的 styleId → 範本中對應的 styleId
+   */
+  function mergeStyles(ours, template) {
+    const W = NS.w
+    const parse = s => new DOMParser().parseFromString(s, 'application/xml')
+    const tpl = parse(template)
+    const root = tpl.documentElement
+    if (root.namespaceURI !== W || root.localName !== 'styles') return { styles: ours, ids: new Map() }
+    const styles = el => [...el.children].filter(c => c.namespaceURI === W && c.localName === 'style')
+    const key = st => `${st.getAttributeNS(W, 'type')}|${st.getElementsByTagNameNS(W, 'name')[0]?.getAttributeNS(W, 'val').toLowerCase()}`
+    const byKey = new Map(styles(root).map(st => [key(st), st.getAttributeNS(W, 'styleId')]))
+    const taken = new Set(styles(root).map(st => st.getAttributeNS(W, 'styleId')))
+    const ids = new Map()
+    const add = []
+    for (const st of styles(parse(ours).documentElement)) {
+      const id = st.getAttributeNS(W, 'styleId')
+      const found = byKey.get(key(st)) ?? (taken.has(id) ? id : null)
+      if (found != null) ids.set(id, found)
+      else add.push(st)
+    }
+    for (const st of add) {
+      // 加進來的樣式以 basedOn、next 指向範本中對應的樣式
+      for (const ref of st.querySelectorAll('basedOn, next, link')) {
+        const v = ref.getAttributeNS(W, 'val')
+        if (ids.has(v)) ref.setAttributeNS(W, 'w:val', ids.get(v))
+      }
+      root.append(tpl.importNode(st, true))
+    }
+    // 範本樣式中的清單編號指向範本自己的 numbering.xml，匯出的文件沒有那些編號
+    for (const np of [...root.getElementsByTagNameNS(W, 'numPr')]) np.remove()
+    return { styles: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${new XMLSerializer().serializeToString(root)}`, ids }
+  }
+
+  /**
    * 產生 .docx
+   * @param {{styles: string, theme?: string}} [template] 套用的 Word 範本（Markloupe.DOCX_TEMPLATE_KEY）
    * @returns {Promise<Blob>}
    */
-  Markloupe.buildDocx = async function (article, settings) {
+  Markloupe.buildDocx = async function (article, settings, template) {
     // 指向本機檔案的連結保留原文的相對寫法：文件不帶出本機的絕對路徑
     const doc = new DOMParser().parseFromString(`<article>${Markloupe.staticHtml(article.childNodes, { localLinks: true })}</article>`, 'text/html')
     const root = doc.querySelector('article')
@@ -730,6 +780,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     }
     fm?.remove()
     const b = new Builder(Markloupe.docxOptions(settings, article.lang))
+    b.template = template?.styles ? template : null
     await b.prepareImages(root) // 在拿走腳註區之前：腳註裡的圖片也要讀
     b.takeFootnotes(root)
     const body = b.flow(root, {})
@@ -744,7 +795,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
   Markloupe.exportDocx = async function (article, settings) {
     const name = `${Markloupe.docBaseName()}.docx`
-    Markloupe.downloadBlob(await Markloupe.buildDocx(article, settings), name)
+    const template = (await chrome.storage.local.get(Markloupe.DOCX_TEMPLATE_KEY))[Markloupe.DOCX_TEMPLATE_KEY]
+    Markloupe.downloadBlob(await Markloupe.buildDocx(article, settings, template), name)
     return { name }
   }
 })()

@@ -480,6 +480,33 @@
   "popupTitle": {
     "message": "Markloupe settings"
   },
+  "docxTemplate": {
+    "message": "Word template"
+  },
+  "docxTemplateNone": {
+    "message": "None"
+  },
+  "docxTemplatePick": {
+    "message": "Choose template…"
+  },
+  "docxTemplateRemove": {
+    "message": "Stop using template"
+  },
+  "docxTemplateHint": {
+    "message": "Uses the styles in the template (fonts, sizes, colors and spacing of body text, headings, code and so on). Styles the template lacks follow the settings above. The template stays on this computer and is not synced."
+  },
+  "docxTemplateSaved": {
+    "message": "Template $1 applied"
+  },
+  "docxTemplateInvalid": {
+    "message": "Can't read it: choose a Word document (.docx) or template (.dotx)"
+  },
+  "docxTemplateTooLarge": {
+    "message": "The template is too large to read"
+  },
+  "docxTemplateNoStyles": {
+    "message": "This file has no Word styles"
+  },
   "secRecent": {
     "message": "Pinned and recent documents"
   },

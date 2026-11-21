@@ -480,6 +480,33 @@
   "popupTitle": {
     "message": "Markloupe 設定"
   },
+  "docxTemplate": {
+    "message": "Word 範本"
+  },
+  "docxTemplateNone": {
+    "message": "未使用"
+  },
+  "docxTemplatePick": {
+    "message": "選擇範本…"
+  },
+  "docxTemplateRemove": {
+    "message": "不使用範本"
+  },
+  "docxTemplateHint": {
+    "message": "套用範本中的樣式（內文、標題、程式碼等的字型、大小、顏色與間距）。範本沒有的樣式照上方設定。範本只存在這台電腦，不同步。"
+  },
+  "docxTemplateSaved": {
+    "message": "已套用範本 $1"
+  },
+  "docxTemplateInvalid": {
+    "message": "無法讀取：請選擇 Word 文件（.docx）或範本（.dotx）"
+  },
+  "docxTemplateTooLarge": {
+    "message": "範本太大，無法讀取"
+  },
+  "docxTemplateNoStyles": {
+    "message": "這個檔案沒有 Word 樣式"
+  },
   "secRecent": {
     "message": "釘選與最近開過的文件"
   },

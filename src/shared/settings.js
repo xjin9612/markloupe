@@ -109,6 +109,7 @@ Markloupe.CUSTOM_CSS_MAX_BYTES = 8000
 Markloupe.POS_KEY = 'markloupe:scroll' // 各文件的閱讀位置：網址 → 捲動位置
 Markloupe.RECENT_KEY = 'markloupe:recent' // 最近開過的文件：[{ url, title, at }]，新的在前
 Markloupe.PINNED_KEY = 'markloupe:pinned' // 釘選的文件：[{ url, title }]
+Markloupe.DOCX_TEMPLATE_KEY = 'markloupe:docx-template' // 匯出 Word 套用的範本：{ name, styles, theme }（styles.xml 與 theme1.xml 的內容）
 Markloupe.cssBytes = css => new TextEncoder().encode(JSON.stringify(css)).length
 
 Markloupe.isSyncEnabled = async function () {
