@@ -5,8 +5,6 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 ;(() => {
   const { h, t } = Markloupe
   const CONTENT_TYPES = ['text/plain', 'text/markdown', 'text/x-markdown']
-  const POS_KEY = 'markloupe:scroll'
-  const POS_LIMIT = 300
   const VIEW_KEY = 'markloupe:view' // 分頁狀態，存在 sessionStorage
   const NARROW = 900
   const CHANGE_SEEN_MS = 3000 // 改動的區塊進入畫面後保留標記的時間
@@ -1027,13 +1025,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       if (document.documentElement.classList.contains('ml-raw')) return
       if (!Markloupe.alive()) return this.onOrphaned()
       try {
-        const data = (await chrome.storage.local.get(POS_KEY))[POS_KEY] || {}
-        const key = this.posKey()
-        delete data[key] // 重新插入，讓最近使用的排在最後
-        data[key] = Math.round(scrollY)
-        const keys = Object.keys(data)
-        for (const k of keys.slice(0, Math.max(0, keys.length - POS_LIMIT))) delete data[k]
-        await chrome.storage.local.set({ [POS_KEY]: data })
+        await chrome.runtime.sendMessage({ type: 'save-position', y: Math.round(scrollY) })
       } catch {
         // 記住捲動位置是附加功能，失敗不影響閱讀
       }
@@ -1041,7 +1033,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
     async restoreScroll() {
       try {
-        const data = (await chrome.storage.local.get(POS_KEY))[POS_KEY] || {}
+        const data = (await chrome.storage.local.get(Markloupe.POS_KEY))[Markloupe.POS_KEY] || {}
         const y = data[this.posKey()]
         if (y) scrollTo(0, y)
       } catch {

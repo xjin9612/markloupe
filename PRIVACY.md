@@ -2,7 +2,7 @@
 
 English | [繁體中文](PRIVACY.zh-TW.md)
 
-*Last updated: 2026-11-14*
+*Last updated: 2026-11-21*
 
 Markloupe is a browser extension that displays Markdown files. **It does not collect, sell or send your data to anyone.** It has no account, no analytics, no ads and no server of its own. Everything described below stays in your browser on your computer.
 
@@ -11,7 +11,7 @@ Markloupe is a browser extension that displays Markdown files. **It does not col
 | Data | Where it is kept | Why |
 |---|---|---|
 | Your settings (theme, colors, custom CSS, font size, text width, language, and the other options in the popup) | The extension's own storage (`chrome.storage.local`). With settings sync on, also `chrome.storage.sync` (see below) | So your choices apply every time you open a document |
-| Reading position: the address of the last 300 Markdown files you opened and how far you had scrolled | The extension's own storage (`chrome.storage.local`) | To return you to the same place when you reopen a file. Older entries are removed automatically |
+| Reading position: the address of the last 300 Markdown files you opened and how far you had scrolled | The extension's own storage (`chrome.storage.local`) | To return you to the same place when you reopen a file. Older entries are removed automatically. Files opened in an incognito window are not recorded |
 | Folders you allowed for task check-off | The extension's own database (IndexedDB), as folder access handles from Chrome | So checking a box can write back to the file without asking again. Remove them from the popup → **Manage folders** |
 | Small interface states: which popup sections are open, the sidebar and folder tree of the current tab, the theme of the loading screen | The browser's storage for the popup or for local `file://` pages only (`localStorage`, `sessionStorage`). Markloupe does not read or write the storage of websites | So the interface looks the same as you left it |
 
