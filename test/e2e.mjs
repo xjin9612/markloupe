@@ -204,6 +204,9 @@ try {
     await pp.goto(`chrome-extension://${sw.url().split('/')[2]}/src/popup/popup.html`)
     await pp.waitForFunction(() => document.querySelector('#web-access').checked)
     await pp.close()
+    // 網站存取限制為特定網站時，只註冊到那些網站
+    const sites = await sw.evaluate(() => webMatches(['file:///*.md', 'file:///*.markdown'], ['https://example.com/*', 'file:///*', '*://*.test.org/*']))
+    assert.deepEqual(sites, ['https://example.com/*.md', 'https://example.com/*.markdown', '*://*.test.org/*.md', '*://*.test.org/*.markdown'])
   })
 
   /* ---------- 渲染 ---------- */
