@@ -60,7 +60,6 @@ const PACKAGES = [
     // 不用官方 ESM 版：它的 chunk 以相對路徑互相引用，在 use_dynamic_url 下會解析成固定網址而被擋
     name: 'mermaid',
     files: [['dist/mermaid.min.js', 'mermaid/mermaid.mjs', iifeToModule]],
-    clean: ['mermaid'],
   },
 ]
 
@@ -86,6 +85,8 @@ for (const pkg of PACKAGES) {
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const work = mkdtempSync(join(tmpdir(), 'ml-vendor-'))
+// vendor/ 整個重建：不是這個腳本產生的檔案會在 git 中顯示為刪除，CI 的重現檢查才抓得到
+rmSync(vendorDir, { recursive: true, force: true })
 mkdirSync(licenseDir, { recursive: true })
 
 const run = args => execFileSync(npm, args, { cwd: work, shell: process.platform === 'win32' }).toString()
@@ -104,17 +105,14 @@ try {
     const out = join(work, pkg.name.replace(/[@/]/g, '_'))
     mkdirSync(out)
     execFileSync('tar', ['-xzf', join(work, tgz), '-C', out])
-    // 先清空，避免殘留舊版的檔案
-    for (const dir of pkg.clean ?? []) rmSync(join(vendorDir, dir), { recursive: true, force: true })
     for (const [from, to, transform] of pkg.files) {
       mkdirSync(dirname(join(vendorDir, to)), { recursive: true })
       if (transform) writeFileSync(join(vendorDir, to), transform(readFileSync(join(out, 'package', from), 'utf8')))
       else copyFileSync(join(out, 'package', from), join(vendorDir, to))
     }
-    // 整個資料夾（不含 sourcemap）；先清空，避免殘留舊版的檔案
+    // 整個資料夾（不含 sourcemap）
     for (const [from, to, only] of pkg.dirs ?? []) {
       const dest = join(vendorDir, to)
-      rmSync(dest, { recursive: true, force: true })
       mkdirSync(dest, { recursive: true })
       for (const f of readdirSync(join(out, 'package', from))) {
         if (f.endsWith('.map') || (only && !only.test(f))) continue
