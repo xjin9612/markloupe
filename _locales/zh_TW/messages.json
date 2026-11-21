@@ -261,6 +261,9 @@
   "taskConflict": {
     "message": "檔案已在其他地方修改，已重新載入，請再點一次"
   },
+  "taskUndoStale": {
+    "message": "這一行已被修改，無法復原"
+  },
   "taskReadonlyRemote": {
     "message": "只有本機檔案的任務可以勾選寫回"
   },

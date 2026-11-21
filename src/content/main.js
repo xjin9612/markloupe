@@ -1124,7 +1124,10 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
           box.checked = to === 'x'
           box.dataset.mlState = to
           this.toc.syncTasks()
-          Markloupe.toast(t(to === 'x' ? 'taskChecked' : 'taskUnchecked'), [{ label: t('undo'), fn: () => this.toggleTask(line) }])
+          // 復原前那一行已被改過（自動更新換了內容）：行號可能指到別的任務，不復原
+          const written = Markloupe.splitLines(res.text)[line]
+          const undo = () => (Markloupe.splitLines(this.raw)[line] === written ? this.toggleTask(line) : Markloupe.toast(t('taskUndoStale')))
+          Markloupe.toast(t(to === 'x' ? 'taskChecked' : 'taskUnchecked'), [{ label: t('undo'), fn: undo }])
           break
         }
         case 'no-root':
