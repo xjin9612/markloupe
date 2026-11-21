@@ -3030,6 +3030,8 @@ try {
     writeFileSync(tplFile, makeZip({ '[Content_Types].xml': '<Types/>', 'word/styles.xml': stylesXml, 'word/theme/theme1.xml': themeXml }))
     writeFileSync(join(dir, 'not-docx.docx'), 'plain text')
     writeFileSync(join(dir, 'no-styles.docx'), makeZip({ 'word/document.xml': '<x/>' }))
+    const embedTheme = themeXml.replace('<a:themeElements/>', '<a:themeElements><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/></a:themeElements>')
+    writeFileSync(join(dir, 'embed-theme.docx'), makeZip({ 'word/styles.xml': stylesXml, 'word/theme/theme1.xml': embedTheme }))
     const stored = () => sw.evaluate(async () => (await chrome.storage.local.get(Markloupe.DOCX_TEMPLATE_KEY))[Markloupe.DOCX_TEMPLATE_KEY])
     const pop = await ctx.newPage()
     try {
@@ -3040,6 +3042,10 @@ try {
         await pop.waitForFunction(m => document.querySelector('#status').textContent.startsWith(m), msg)
       }
       assert.equal(await stored(), undefined, '不合格的檔案不儲存')
+      // 佈景主題引用了關聯檔：只帶樣式
+      await pop.setInputFiles('#docx-template-file', join(dir, 'embed-theme.docx'))
+      await until(async () => (await stored())?.name === 'embed-theme.docx')
+      assert.equal((await stored()).theme, null)
       await pop.setInputFiles('#docx-template-file', tplFile)
       await pop.waitForFunction(() => document.querySelector('#docx-template-name').textContent === '公司範本.dotx')
       const tpl = await stored()

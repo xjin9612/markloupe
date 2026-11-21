@@ -738,7 +738,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     const root = tpl.documentElement
     if (root.namespaceURI !== W || root.localName !== 'styles') return { styles: ours, ids: new Map() }
     const styles = el => [...el.children].filter(c => c.namespaceURI === W && c.localName === 'style')
-    const key = st => `${st.getAttributeNS(W, 'type')}|${st.getElementsByTagNameNS(W, 'name')[0]?.getAttributeNS(W, 'val').toLowerCase()}`
+    const key = st => `${st.getAttributeNS(W, 'type')}|${(st.getElementsByTagNameNS(W, 'name')[0]?.getAttributeNS(W, 'val') ?? '').toLowerCase()}`
     const byKey = new Map(styles(root).map(st => [key(st), st.getAttributeNS(W, 'styleId')]))
     const taken = new Set(styles(root).map(st => st.getAttributeNS(W, 'styleId')))
     const ids = new Map()

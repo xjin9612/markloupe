@@ -4,7 +4,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
 ;(() => {
   const MAX_FILE = 10 * 1024 * 1024
-  const MAX_PART = 4 * 1024 * 1024 // 解壓後單一部分的上限：避免壓縮炸彈
+  const MAX_PART = 2 * 1024 * 1024 // 單一部分解壓後的上限：避免壓縮炸彈，也不佔掉太多 storage.local（上限 10 MB）
   const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
   const A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 
@@ -59,7 +59,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       const entry = utf8.decode(new Uint8Array(buf, p + 46, nameLen))
       p += 46 + nameLen + extraLen + commentLen
       if (entry !== name) continue
-      if (fullSize > MAX_PART) throw new TemplateError('docxTemplateTooLarge')
+      if (fullSize > MAX_PART || (method === 0 && size > MAX_PART)) throw new TemplateError('docxTemplateTooLarge')
       const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true)
       const data = new Uint8Array(buf, start, size)
       if (method === 0) return utf8.decode(data)
@@ -87,10 +87,12 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       const styles = await readEntry(buf, 'word/styles.xml')
       const root = styles && rootOf(styles)
       if (root?.namespaceURI !== W || root.localName !== 'styles') throw new TemplateError('docxTemplateNoStyles')
-      // 佈景主題字型（例如「標題」用 +主要字型）要有 theme1.xml 才能解析；讀不到或格式不對就不帶
+      // 佈景主題字型（例如「標題」用 +主要字型）要有 theme1.xml 才能解析；讀不到、格式不對，
+      // 或引用了關聯檔（例如以圖片填滿，r:embed）時不帶：匯出的文件沒有那些關聯
       const theme = await readEntry(buf, 'word/theme/theme1.xml').catch(() => null)
       const themeRoot = theme && rootOf(theme)
-      return { name: file.name, styles, theme: themeRoot?.namespaceURI === A && themeRoot.localName === 'theme' ? theme : null }
+      const usable = themeRoot?.namespaceURI === A && themeRoot.localName === 'theme' && !/\sr:(?:embed|link|id|pict)=/.test(theme)
+      return { name: file.name, styles, theme: usable ? theme : null }
     } catch (err) {
       if (err instanceof TemplateError) throw err
       throw new TemplateError('docxTemplateInvalid') // 讀取 zip 時超出範圍等
