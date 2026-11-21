@@ -32,6 +32,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
   ]
   const pick = (table, lang, fallback) => table.find(([re]) => re.test(lang))?.[1] ?? fallback
 
+  const IMAGE_TOTAL_MAX = 64 * 1024 * 1024 // 圖片總量上限（位元組）
+
   // XML 1.0 不允許的控制字元一律去掉
   const esc = s =>
     String(s)
@@ -81,10 +83,11 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       if (CJK_TEXT.test(text)) props.push('<w:rFonts w:hint="eastAsia"/>')
       if (f.b) props.push('<w:b/><w:bCs/>')
       if (f.i) props.push('<w:i/><w:iCs/>')
+      // 順序照 Word 的 schema（CT_RPr）
       if (f.s) props.push('<w:strike/>')
-      if (f.u) props.push('<w:u w:val="single"/>')
       if (f.color) props.push(`<w:color w:val="${f.color}"/>`)
       if (f.mark) props.push('<w:highlight w:val="yellow"/>')
+      if (f.u) props.push('<w:u w:val="single"/>')
       if (f.va) props.push(`<w:vertAlign w:val="${f.va}"/>`)
       const rPr = props.length ? `<w:rPr>${props.join('')}</w:rPr>` : ''
       // 換行與 Tab 要用專門的元素；空白一律保留
@@ -159,7 +162,17 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         }
         return `<w:hyperlink w:anchor="${this.bookmarkName(id)}">${inner}</w:hyperlink>`
       }
-      if (!/^(https?|mailto|file):/i.test(href)) return [...a.childNodes].map(n => this.inline(n, f)).join('')
+      const plain = () => [...a.childNodes].map(n => this.inline(n, f)).join('')
+      // 沒有協定的是本機檔案的相對連結（buildDocx 保留原文的寫法），照寫
+      const scheme = /^([a-z][a-z\d+.-]*):/i.exec(href)?.[1].toLowerCase()
+      if (scheme && !['http', 'https', 'mailto', 'file'].includes(scheme)) return plain()
+      // 無法解析的網址不寫成連結，只留文字
+      try {
+        new URL(href, 'file:///')
+        if (scheme && scheme !== 'file') new URL(href)
+      } catch {
+        return plain()
+      }
       return `<w:hyperlink r:id="${this.rel(`${REL}/hyperlink`, href, true)}">${inner}</w:hyperlink>`
     }
 
@@ -177,7 +190,13 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     /** 同一個腳註被引用多次時，每次各建一份：Word 的腳註只能被引用一次 */
     footnoteRef(sup) {
       const a = sup.querySelector('a[href^="#"]')
-      const li = a && this.notes.get(decodeURIComponent(a.getAttribute('href').slice(1)))
+      let id = a?.getAttribute('href').slice(1)
+      try {
+        id = id && decodeURIComponent(id)
+      } catch {
+        // 不合法的 % 編碼：沿用原字串
+      }
+      const li = id && this.notes.get(id)
       if (!li || this.inFootnote) return this.run(sup.textContent, { va: 'superscript' })
       this.footnotes.push(li)
       return `<w:r><w:rPr><w:rStyle w:val="MLFootnoteRef"/></w:rPr><w:footnoteReference w:id="${this.footnotes.length}"/></w:r>`
@@ -225,17 +244,30 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     async prepareImages(root) {
       this.images = new Map() // 元素 → { rid, w, h }（w、h 是 EMU）
       const maxW = (PAPER[this.opts.paper].w - MARGIN * 2) * 635 // twip → EMU
+      // 同一張圖片只讀一次、存一份；總量超過上限後的圖片改以替代文字表示
+      const stored = new Map() // 圖片資料 → 檔名
+      let total = 0
       const add = (el, png, w, h) => {
-        const name = `image${this.media.length + 1}.${png.ext}`
-        this.media.push({ name, data: png.bytes })
+        let name = stored.get(png)
+        if (!name) {
+          if (total + png.bytes.length > IMAGE_TOTAL_MAX) return
+          total += png.bytes.length
+          name = `image${this.media.length + 1}.${png.ext}`
+          this.media.push({ name, data: png.bytes })
+          stored.set(png, name)
+        }
         const scale = Math.min(1, maxW / (w * 9525))
         this.images.set(el, { name, w: Math.round(w * 9525 * scale), h: Math.round(h * 9525 * scale) })
       }
+      const reads = new Map() // src → 讀取結果
       for (const img of root.querySelectorAll('img[src]')) {
-        const got = await readImage(img.getAttribute('src')).catch(() => null)
+        const src = img.getAttribute('src')
+        if (!reads.has(src)) reads.set(src, await readImage(src).catch(() => null))
+        const got = reads.get(src)
         if (!got) continue
         // HTML 有寫寬度時照寫的寬度，否則用圖片本身的尺寸（以 96 dpi 換算）
-        const attrW = Number(img.getAttribute('width')) || 0
+        const n = Number(img.getAttribute('width'))
+        const attrW = Number.isFinite(n) && n > 0 ? n : 0
         const w = attrW || got.w
         add(img, got, w, attrW ? (got.h * attrW) / got.w : got.h)
       }
@@ -396,17 +428,20 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
     list(el, ctx) {
       const level = ctx.level ?? 0
+      const numLevel = Math.min(level, 8) // numbering.xml 只定義 0～8 層，更深的清單沿用第 8 層
       let numId = 1 // 項目符號共用同一組
       if (el.tagName === 'OL') {
         numId = this.nums.length + 2
-        this.nums.push({ id: numId, start: Number(el.getAttribute('start')) || 1, level })
+        const raw = el.getAttribute('start')
+        const start = raw ? Number(raw) : 1
+        this.nums.push({ id: numId, start: Number.isInteger(start) ? Math.min(Math.max(start, 0), 32767) : 1, level: numLevel })
       }
       const out = []
       for (const li of el.children) {
         if (li.tagName !== 'LI') continue
         const task = li.classList.contains('task-list-item')
         // 任務清單在畫面上沒有項目符號：只縮排，勾選框以 ☐／☒ 表示
-        const first = task ? { ...ctx, indent: INDENT * 2 * (level + 1), level: undefined } : { ...ctx, num: { id: numId, level } }
+        const first = task ? { ...ctx, indent: INDENT * 2 * (level + 1), level: undefined } : { ...ctx, num: { id: numId, level: numLevel } }
         const rest = { ...ctx, indent: INDENT * 2 * (level + 1), num: undefined, level: level + 1 }
         let started = false
         let pending = []
@@ -441,8 +476,11 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     }
 
     table(table) {
-      const rows = [...table.rows]
-      const cols = Math.max(1, ...rows.map(r => [...r.cells].reduce((n, c) => n + (c.colSpan || 1), 0)))
+      // 沒有儲存格的列 Word 會判定損毀；Word 的表格最多 63 欄，超出的儲存格內容併入最後一格
+      const rows = [...table.rows].filter(r => r.cells.length)
+      if (!rows.length) return ''
+      const MAX_COLS = 63
+      const cols = Math.min(MAX_COLS, rows.reduce((m, r) => Math.max(m, [...r.cells].reduce((n, c) => n + (c.colSpan || 1), 0)), 1))
       const width = (PAPER[this.opts.paper].w - MARGIN * 2) / cols
       const grid = `<w:tblGrid>${`<w:gridCol w:w="${Math.round(width)}"/>`.repeat(cols)}</w:tblGrid>`
       // 跨列（rowspan）的儲存格往下佔用的欄：欄位 → { 剩餘列數, 欄寬 }。被佔用的位置輸出延續的合併儲存格
@@ -463,7 +501,12 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
           }
           for (const c of r.cells) {
             fill()
-            const span = c.colSpan || 1
+            if (col >= MAX_COLS && out.length) {
+              const extra = this.flow(c, { f: head ? { b: true } : {}, style: 'MLTableText' }).join('')
+              out[out.length - 1] = out[out.length - 1].replace(/<\/w:tc>$/, () => `${extra}</w:tc>`)
+              continue
+            }
+            const span = Math.min(c.colSpan || 1, MAX_COLS - col)
             const down = c.rowSpan > 1 ? c.rowSpan : 1
             const align = { center: 'center', right: 'right' }[c.style.textAlign] || undefined
             const pr = [
@@ -675,7 +718,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
    * @returns {Promise<Blob>}
    */
   Markloupe.buildDocx = async function (article, settings) {
-    const doc = new DOMParser().parseFromString(`<article>${Markloupe.staticHtml(article.childNodes)}</article>`, 'text/html')
+    // 指向本機檔案的連結保留原文的相對寫法：文件不帶出本機的絕對路徑
+    const doc = new DOMParser().parseFromString(`<article>${Markloupe.staticHtml(article.childNodes, { localLinks: true })}</article>`, 'text/html')
     const root = doc.querySelector('article')
     // front matter 只取 title、author、date（以鍵值清單顯示的才有）
     const fm = root.querySelector(':scope > .ml-frontmatter')

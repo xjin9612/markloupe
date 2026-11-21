@@ -49,10 +49,11 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
   /**
    * 複製文章並整理成靜態內容
-   * @param {{portable?: boolean}} [opts] portable：指向本機檔案的網址保留原文的寫法，.md 連結改成匯出後的 .html，
-   *   匯出檔不帶出本機路徑；原文自己寫的 file: 網址照原文保留。其餘網址一律改成絕對網址
+   * @param {{portable?: boolean, localLinks?: boolean}} [opts] portable：指向本機檔案的網址保留原文的寫法，.md 連結改成匯出後的 .html，
+   *   匯出檔不帶出本機路徑；原文自己寫的 file: 網址照原文保留。其餘網址一律改成絕對網址。
+   *   localLinks：只有指向本機檔案的連結保留原文的寫法，圖片照樣改成絕對網址
    */
-  function staticArticle(article, { portable = false } = {}) {
+  function staticArticle(article, { portable = false, localLinks = false } = {}) {
     const clone = article.cloneNode(true)
     for (const el of clone.querySelectorAll(REMOVE)) el.remove()
     for (const el of clone.querySelectorAll('[data-ml-line]')) {
@@ -108,8 +109,9 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       const raw = el.getAttribute(attr)
       if (attr === 'href' && raw.startsWith('#')) return
       const abs = absolute(raw)
-      if (!portable || !/^file:/i.test(abs)) el.setAttribute(attr, abs)
-      else if (attr === 'href' && !/^\s*file:/i.test(raw)) el.setAttribute(attr, mdToHtml(raw))
+      if (!/^file:/i.test(abs)) el.setAttribute(attr, abs)
+      else if (portable && attr === 'href' && !/^\s*file:/i.test(raw)) el.setAttribute(attr, mdToHtml(raw))
+      else if (!portable && !(localLinks && attr === 'href')) el.setAttribute(attr, abs)
     }
     for (const el of clone.querySelectorAll('img[src], source[src], video[src], audio[src]')) rewrite(el, 'src')
     for (const el of clone.querySelectorAll('video[poster]')) rewrite(el, 'poster')
@@ -162,14 +164,14 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
   }
 
-  function staticNodes(nodes) {
+  function staticNodes(nodes, opts) {
     const box = document.createElement('article')
     for (const n of nodes) box.append(n.cloneNode(true))
-    return staticArticle(box)
+    return staticArticle(box, opts)
   }
 
-  /** 部分內容（例如一個章節）整理成靜態 HTML，供複製到剪貼簿 */
-  Markloupe.staticHtml = nodes => staticNodes(nodes).innerHTML
+  /** 部分內容（例如一個章節）整理成靜態 HTML，供複製到剪貼簿；opts 同 staticArticle */
+  Markloupe.staticHtml = (nodes, opts) => staticNodes(nodes, opts).innerHTML
 
   const dataUrl = blob =>
     new Promise((resolve, reject) => {

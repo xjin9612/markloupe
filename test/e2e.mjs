@@ -2445,6 +2445,60 @@ try {
     const plain = n => text(n)?.replaceAll('<w:rFonts w:hint="eastAsia"/>', '').replaceAll('<w:rPr></w:rPr>', '')
     return { name: dl.suggestedFilename(), file, parts, xml: plain, raw: text }
   }
+  await check('匯出 Word：特殊內容不產生壞掉的檔案，本機連結不帶出絕對路徑', async () => {
+    const deep = Array.from({ length: 11 }, (_, i) => `${'  '.repeat(i)}- 第 ${i + 1} 層`).join('\n')
+    const md = [
+      '# 邊界',
+      '',
+      '公式 $\\sum \\text{\\$\\&}$ 與 $\\char"1$ 與 $\\textbf{\\text{粗}}$。',
+      '',
+      '[相對連結](other.md) [空白主機](<http://a b/>) [資料夾外](../up.md)',
+      '',
+      '腳註<sup class="footnote-ref"><a href="#%">1</a></sup>',
+      '',
+      '<img src="img/pic.png" width="1e400" alt="一"> <img src="img/pic.png" alt="二">',
+      '',
+      '0. 零',
+      '1. 一',
+      '',
+      deep,
+      '',
+      '<table></table>',
+      '',
+      '<table><tr></tr><tr><td colspan="1000">寬</td><td>後面的儲存格</td></tr></table>',
+      '',
+    ].join('\n')
+    const file = join(work, 'export', 'docx-edge.md')
+    writeFileSync(file, md)
+    const dp = await openDoc(pathToFileURL(file).href)
+    try {
+      await dp.bringToFront()
+      await dp.waitForFunction(() => document.documentElement.dataset.mlMath === 'loaded')
+      const { xml, parts } = await exportDocx(dp)
+      const doc = xml('word/document.xml')
+      const rels = xml('word/_rels/document.xml.rels')
+      assert.ok(!rels.includes('file:'), rels)
+      assert.match(rels, /Target="other\.md" TargetMode="External"/)
+      assert.match(rels, /Target="\.\.\/up\.md" TargetMode="External"/)
+      assert.ok(!/Target="[^"]*\s[^"]*"/.test(rels), '關聯網址不含空白')
+      assert.ok(doc.includes('空白主機'))
+      assert.ok(doc.includes('$&amp;</m:t>'), '公式中的 $& 照原文')
+      assert.ok(!/<m:nor\/><m:(sty|scr)/.test(doc), 'm:nor 不與 m:sty、m:scr 同時出現')
+      assert.match(doc, /<m:nor\/><\/m:rPr><w:rPr><w:b\/><\/w:rPr><m:t xml:space="preserve">粗/)
+      assert.ok(!doc.includes('NaN'), '圖片尺寸')
+      assert.equal(Object.keys(parts).filter(n => n.startsWith('word/media/')).length, 1, '同一張圖只存一份')
+      assert.equal((doc.match(/<w:drawing>/g) || []).length, 2)
+      assert.match(xml('word/numbering.xml'), /<w:startOverride w:val="0"\/>/)
+      assert.ok(!/w:ilvl w:val="(9|1\d)"/.test(doc), '清單層級最多到 8')
+      assert.ok(!/<w:tr>(<w:trPr>(?:(?!<\/w:trPr>).)*<\/w:trPr>)?<\/w:tr>/.test(doc), '沒有空的表格列')
+      assert.ok(!/<w:tbl>(?:(?!<w:tr>).)*<\/w:tbl>/.test(doc), '沒有空的表格')
+      const spans = [...doc.matchAll(/<w:gridSpan w:val="(\d+)"\/>/g)].map(m => +m[1])
+      assert.ok(spans.length && Math.max(...spans) <= 63, `合併欄數 ${spans}`)
+      assert.ok(doc.includes('後面的儲存格'), '超出 63 欄的內容併入最後一格')
+    } finally {
+      await dp.close()
+    }
+  })
   await check('匯出 Word：標題、文字格式、清單、程式碼、引用、表格與連結轉成 Word 的結構與樣式', async () => {
     const md = [
       '---',
