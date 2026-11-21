@@ -150,7 +150,7 @@ flowchart LR
 - **授權資料夾**：存在擴充功能自己的 IndexedDB，一般網頁與本機 HTML 檔都取不到。
 - **設定同步**：只同步 `settings.js` 的 `SYNC_KEYS` 與自訂 CSS，由瀏覽器帳號處理。授權資料夾、閱讀位置、編輯器網址不同步。本機的自訂 CSS 超過 8000 bytes 時不上傳，也不套用雲端的 CSS。
 - **設定寫入**：設定是 `storage.local` 裡的一整個物件。popup 與閱讀頁以訊息請 background 寫入，所有寫入與同步在 background 依序執行，不會互相蓋掉。上傳到 `storage.sync` 至少間隔 1 秒（每分鐘上限 120 次），期間的連續修改合併成一次。閱讀位置同樣由 background 寫入，無痕視窗不記錄。
-- **最近開過與釘選的文件**：閱讀頁開啟時通知 background，background 以發出請求的頁面網址記錄，不接受頁面帶入的網址。只記 `file:`、`http:`、`https:`，無痕視窗不記，存在 `storage.local`、不同步。最近的合計 20 份，釘選最多 20 份。側邊欄與 popup 的釘選與移除也經由 background 依序寫入。網頁不能連到本機檔案：側邊欄要開啟清單中的本機文件時，由 background 確認網址在清單裡再換頁。
+- **最近開過與釘選的文件**：閱讀頁開啟時通知 background，background 以發出請求的頁面網址記錄，不接受頁面帶入的網址。只記 `file:`、`http:`、`https:`，無痕視窗不記，存在 `storage.local`、不同步。最近的合計 20 份，釘選最多 20 份。側邊欄與 popup 的釘選與移除也經由 background 依序寫入。側邊欄畫在頁面的 DOM 裡，網頁上同源的視窗讀得到，所以「最近」分頁只在本機文件提供（本機檔案彼此是不同來源），網頁上只能從 popup 開啟清單。關閉記錄（popup、同步或匯入設定）時由 background 清除最近的紀錄。
 - **舊名稱的資料**：更新時，background 把舊名稱 MarkLens 的儲存鍵（`marklens:`）與資料庫（`marklens`）搬到新名稱。頁面的 `localStorage` 與 `sessionStorage` 只存主題快取、分頁狀態與 popup 區塊的展開狀態，不搬移。
 - **自訂 CSS**：寫進匯出檔時跳脫 `</style`，不能跳出樣式區塊。
 - **列印**：以 `@page` 頁邊方塊取代 Chrome 的頁首頁尾，PDF 不含本機檔案路徑。

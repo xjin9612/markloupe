@@ -360,7 +360,7 @@
     const more = $('#recent-more')
     more.hidden = shown.length === recent.length
     more.textContent = t('recentMore', recent.length - shown.length)
-    $('#recent-clear').disabled = !recent.length
+    $('#recent-clear').disabled = !(data[Markloupe.RECENT_KEY] || []).length
   }
   $('#recent-more').addEventListener('click', () => {
     recentAll = true
@@ -403,10 +403,6 @@
       await Markloupe.initI18n(el.value)
       Markloupe.localize()
       labelColors()
-    } else if (el.name === 'recentFiles') {
-      await Markloupe.saveSettings({ recentFiles: el.checked })
-      // 關閉時一併清除已記下的最近開過的文件；釘選的保留
-      if (!el.checked) await updateRecent({ action: 'clear' })
     } else if (el.name === 'syncEnabled') {
       // 開啟時若雲端已有設定會套用到這台電腦，重新填入表單
       await Markloupe.setSyncEnabled(el.checked)

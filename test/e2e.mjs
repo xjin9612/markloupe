@@ -1223,6 +1223,9 @@ try {
   await check('http:// 渲染', async () => {
     assert.equal(await p4.locator('.markdown-body h1').count(), 1)
     assert.equal(await p4.locator('.ml-side-tab:text("檔案")').isVisible(), false, '網路上的頁面沒有檔案分頁')
+    // 網頁上沒有最近分頁：同源的網站讀得到頁面 DOM
+    assert.equal(await p4.locator('.ml-recent').count(), 0)
+    assert.equal(await p4.locator('.ml-side-tab:text("最近")').isVisible(), false)
     assert.equal(await p4.locator('input.ml-task-box').first().getAttribute('data-ml-readonly'), 'taskReadonlyRemote')
   })
   await check('網頁上的分頁狀態不寫進網站的儲存空間（網站無法藉此偵測 Markloupe）', async () => {
@@ -1357,6 +1360,12 @@ try {
         await sw.evaluate(() => HANDLERS['record-visit']({ title: 'off' }, { url: 'file:///d/off.md' }))
         assert.equal((await lists())['markloupe:recent'].length, 0)
         await pop.check('[name=recentFiles]')
+        // 經同步或匯入設定關閉時同樣清除
+        await sw.evaluate(() => HANDLERS['record-visit']({ title: 'on' }, { url: 'file:///d/on.md' }))
+        assert.equal((await lists())['markloupe:recent'].length, 1)
+        await sw.evaluate(() => Markloupe.saveSettings({ recentFiles: false }))
+        await until(async () => (await lists())['markloupe:recent'].length === 0)
+        await sw.evaluate(() => Markloupe.saveSettings({ recentFiles: true }))
       } finally {
         await pop.close()
       }

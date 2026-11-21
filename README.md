@@ -69,7 +69,7 @@ Changed blocks get a colored bar, and a line marks where text was removed. Click
 
 ### Outline, folding and folders
 
-The sidebar outline highlights the section you're reading. Fold any section, or all of them at once. The **Files** tab lists the Markdown files and subfolders next to the document. The **Recent** tab, and the popup, list the documents you opened recently and the ones you pinned, so you can open them again.
+The sidebar outline highlights the section you're reading. Fold any section, or all of them at once. The **Files** tab lists the Markdown files and subfolders next to the document. The **Recent** tab (in local documents) and the popup list the documents you opened recently and the ones you pinned, so you can open them again.
 
 ![Jumping through the outline, folding all sections and opening the Files tab](docs/screenshots/sidebar.gif)
 
