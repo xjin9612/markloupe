@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Task checkboxes written on the line after the list marker (`-` then `[ ] task`) or after two list markers (`- - [ ] task`) can be checked off, and a lone CR line break in the front matter no longer shifts which line a checkbox writes to
 - Front matter keeps a `#` inside quotes, and an empty front matter (`---` right after `---`) is hidden
 - A heading such as `# ml-mermaid-1` is no longer removed when the document has a Mermaid diagram
+- The sidebar search box shows one focus outline instead of two
 
 ### Security
 - Mermaid `%%{init}%%` directives and diagram front matter can no longer turn on HTML labels, so diagrams still contain no HTML
