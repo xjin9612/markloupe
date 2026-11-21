@@ -81,7 +81,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     failure: 'caution', fail: 'caution', missing: 'caution', danger: 'caution', error: 'caution', bug: 'caution',
   }
   // 類型後的 + 或 - 表示可摺疊（預設展開或收合），之後到行尾為自訂標題
-  const ALERT_RE = /^\[!([\w-]+)\]([+-]?)[ \t]*([^\n]*?)[ \t]*(?:\n|$)/
+  const ALERT_RE = /^\[!([\w-]+)\]([+-]?)([^\n]*)(?:\n|$)/
 
   /** 預設標題：類型名稱首字大寫（Obsidian 的做法） */
   Markloupe.calloutTitle = type => type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()
@@ -89,21 +89,24 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
   function alertPlugin(md) {
     // 在 inline 解析前處理，只需改 inline token 的 content；插入的標題 inline token 也會在之後解析
     md.core.ruler.after('block', 'markloupe_alert', state => {
+      // 標題段落插入新陣列，不在原陣列中 splice（提示框多時會變成二次方）
       const tokens = state.tokens
-      for (let i = 0; i < tokens.length - 2; i++) {
+      const out = []
+      for (let i = 0; i < tokens.length; i++) {
         const open = tokens[i]
+        out.push(open)
         if (open.type !== 'blockquote_open') continue
         const para = tokens[i + 1]
         const inline = tokens[i + 2]
-        if (para.type !== 'paragraph_open' || inline.type !== 'inline') continue
+        if (para?.type !== 'paragraph_open' || inline?.type !== 'inline') continue
         const m = ALERT_RE.exec(inline.content)
         if (!m) continue
-        const [, type, fold, title] = m
-        const kind = CALLOUT_KIND[type.toLowerCase()] || 'note'
+        const [, type, fold] = m
+        const title = m[3].trim()
+        const key = type.toLowerCase()
+        const kind = Object.hasOwn(CALLOUT_KIND, key) ? CALLOUT_KIND[key] : 'note'
         open.attrJoin('class', `markdown-alert markdown-alert-${kind}`)
         inline.content = inline.content.slice(m[0].length)
-        // 標記獨佔一段：移除這個空段落
-        if (inline.content.trim() === '') tokens.splice(i + 1, 3)
         const tag = fold ? 'summary' : 'p'
         const head = new state.Token('paragraph_open', tag, 1)
         head.attrSet('class', 'markdown-alert-title')
@@ -118,7 +121,9 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         const close = new state.Token('paragraph_close', tag, -1)
         close.block = true
         close.level = head.level
-        tokens.splice(i + 1, 0, head, text, close)
+        out.push(head, text, close)
+        // 標記獨佔一段：略過這個空段落
+        if (inline.content.trim() === '') i += 3
         if (!fold) continue
         // 可摺疊的提示框輸出成 <details>，標題為 <summary>
         open.tag = 'details'
@@ -130,6 +135,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
           }
         }
       }
+      state.tokens = out
     })
   }
   /* ---------- Obsidian 的 [[wikilink]] 與 ![[圖片]] ---------- */
@@ -149,6 +155,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       if (end < 0) return false
       const body = src.slice(start + 2, end)
       if (!body.trim() || /[[\]\n]/.test(body)) return false
+      // [[1]](網址)、[[文字]][參照] 是一般連結，連結文字含方括號（Wikipedia 的引用編號轉成 Markdown 就是這樣）
+      if (!embed && /[([]/.test(src[end + 2] || '')) return false
       if (silent) {
         state.pos = end + 2
         return true
@@ -215,15 +223,19 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
   const META_LINES_RE = /\{([\d,\s-]+)\}/
   const MAX_MARKED_LINES = 10000
 
-  /** "1,3-5" → Set{1,3,4,5}（1 起算）；範圍超過 MAX_MARKED_LINES 的部分略過 */
+  /** "1,3-5" → Set{1,3,4,5}（1 起算）；所有範圍合計超過 MAX_MARKED_LINES 行的部分略過 */
   function lineSet(spec) {
     const out = new Set()
+    let budget = MAX_MARKED_LINES
     for (const part of spec.split(',')) {
       const m = /^\s*(\d+)\s*(?:-\s*(\d+))?\s*$/.exec(part)
       if (!m) continue
       const a = +m[1]
-      const b = Math.min(m[2] ? +m[2] : a, a + MAX_MARKED_LINES)
-      for (let n = a; n <= b; n++) out.add(n)
+      const b = m[2] ? +m[2] : a
+      for (let n = a; n <= b; n++) {
+        if (--budget < 0) return out
+        out.add(n)
+      }
     }
     return out
   }
@@ -337,10 +349,13 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       const start = state.pos
       if (src.charCodeAt(start) !== DOLLAR) return false
 
-      // GitHub 的 $`…`$ 寫法
+      // GitHub 的 $`…`$ 寫法；找不到結尾時記下來，之後的 $` 不必再往後找
       if (src[start + 1] === '`') {
-        const end = src.indexOf('`$', start + 2)
-        if (end < 0) return false
+        const end = state.mlNoTickClose ? -1 : src.indexOf('`$', start + 2)
+        if (end < 0) {
+          state.mlNoTickClose = true
+          return false
+        }
         if (!silent) push(state, 'math_inline', src.slice(start + 2, end))
         state.pos = end + 2
         return true
@@ -381,24 +396,32 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       token.markup = '$'
     }
 
-    // 獨立成段的 $$ … $$（可跨多行）
+    // 往下找結尾失敗的範圍：同一段中後面的 $$ 開頭行不必重找（段落的每一行都會試一次，重找會變成二次方）
+    const noClose = new WeakMap() // state → { from, to, end, indent, parent, mark }
+
+    // 獨立成段的 $$ … $$（可跨多行，不跨空行）；開頭那行的 $$ 之後若在行中結尾，是行內公式，不是區塊
     function mathBlock(state, startLine, endLine, silent) {
       let pos = state.bMarks[startLine] + state.tShift[startLine]
       let max = state.eMarks[startLine]
       if (state.sCount[startLine] - state.blkIndent >= 4) return false
       if (state.src.slice(pos, pos + 2) !== '$$') return false
-      let first = state.src.slice(pos + 2, max)
+      const first = state.src.slice(pos + 2, max)
       let line = startLine
       let body
       if (first.trim().endsWith('$$') && first.trim().length > 2) {
         body = first.trim().slice(0, -2)
+        if (body.includes('$$')) return false
       } else {
+        if (first.includes('$$')) return false
+        const skip = noClose.get(state)
+        const same = skip && skip.indent === state.blkIndent && skip.parent === state.parentType && skip.mark === state.bMarks[skip.from]
+        if (same && startLine > skip.from && startLine < skip.to && endLine <= skip.end) return false
         const lines = [first]
         let found = false
         while (++line < endLine) {
           pos = state.bMarks[line] + state.tShift[line]
           max = state.eMarks[line]
-          if (pos < max && state.sCount[line] < state.blkIndent) break
+          if (pos >= max || state.sCount[line] < state.blkIndent) break
           const text = state.src.slice(pos, max)
           if (text.trim().endsWith('$$')) {
             lines.push(text.trim().slice(0, -2))
@@ -407,7 +430,10 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
           }
           lines.push(state.src.slice(state.bMarks[line], max))
         }
-        if (!found) return false
+        if (!found) {
+          noClose.set(state, { from: startLine, to: line, end: endLine, indent: state.blkIndent, parent: state.parentType, mark: state.bMarks[startLine] })
+          return false
+        }
         body = lines.join('\n')
       }
       if (silent) return true
@@ -450,7 +476,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         if (t.type !== 'list_item_open' || !t.map) continue
         if (tokens[i + 1].type !== 'paragraph_open' || tokens[i + 2].type !== 'inline') continue
         if (!TASK_MARK_RE.test(tokens[i + 2].content)) continue
-        t.attrJoin('class', `ml-task-${nonce}-${t.map[0] + offset}`)
+        // [ ] 所在的行是段落的第一行，不一定是清單項目的第一行（- 後面直接換行時）
+        t.attrJoin('class', `ml-task-${nonce}-${(tokens[i + 1].map?.[0] ?? t.map[0]) + offset}`)
       }
       // 區塊的原文行號範圍（0 起算，結尾不含）：複製章節、複製位置、用編輯器開啟時對應回原文
       for (const t of tokens) {
@@ -499,19 +526,21 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
   }
 
   /* ---------- front matter ---------- */
-  const FM_RE = /^\ufeff?---[ \t]*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/
+  const FM_RE = /^\ufeff?---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/
 
   /** 拆出 front matter；回傳 { frontMatter, body } */
   Markloupe.splitFrontMatter = function (src) {
     const m = FM_RE.exec(src)
     if (!m) return { frontMatter: null, body: src.replace(/^\ufeff/, '') }
-    return { frontMatter: m[1], body: src.slice(m[0].length) }
+    return { frontMatter: m[1] ?? '', body: src.slice(m[0].length) }
   }
 
-  /** YAML 純量：去掉行尾註解與成對的引號 */
+  /** YAML 純量：去掉成對的引號，或去掉不在引號內的行尾註解 */
   const scalar = v => {
-    const s = v.replace(/(^|[ \t])#.*$/, '').trim()
-    return /^(["'])(.*)\1$/.exec(s)?.[2] ?? s
+    const t = v.trim()
+    const quoted = /^(["'])(.*?)\1[ \t]*(?:#.*)?$/.exec(t)
+    if (quoted) return quoted[2]
+    return t.replace(/(^|[ \t])#.*$/, '').trim()
   }
 
   /**
@@ -520,13 +549,13 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
    */
   Markloupe.frontMatterEntries = function (frontMatter) {
     const entries = []
-    for (const line of (frontMatter || '').split(/\r?\n/)) {
+    for (const line of (frontMatter || '').split(/\r\n|\r|\n/)) {
       if (!line.trim() || /^#/.test(line)) continue
       const m = /^([\w][\w.-]*)[ \t]*:(?:[ \t]+(.*))?$/.exec(line)
       if (!m) return null
       const raw = (m[2] || '').trim()
       if (/^[|>]/.test(raw)) return null
-      const list = /^\[(.*)\]$/.exec(scalar(raw))
+      const list = /^\[(.*)\](?:[ \t]+#.*)?$/.exec(raw)
       entries.push([m[1], list ? list[1].split(',').map(scalar).filter(Boolean).join(', ') : scalar(raw)])
     }
     return entries.length ? entries : null

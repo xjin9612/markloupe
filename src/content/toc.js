@@ -129,7 +129,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     build(headings, depth) {
       this.depth = depth
       this.list.textContent = ''
-      const minLevel = Math.min(6, ...headings.map(el => +el.dataset.mlLevel))
+      const minLevel = headings.reduce((m, el) => Math.min(m, +el.dataset.mlLevel), 6)
       this.items = headings.map(heading => {
         const level = +heading.dataset.mlLevel
         const text = heading.dataset.mlText
