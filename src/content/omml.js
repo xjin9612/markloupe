@@ -3,7 +3,11 @@
 var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
 ;(() => {
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  // XML 1.0 不允許的控制字元一律去掉（KaTeX 的 \char 可以產生）
+  const esc = s =>
+    String(s)
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, '')
+      .replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 
   // 求和、積分等大型運算子：上下限放在符號上下（積分放右側）
   const NARY = new Set([...'∑∏∐⋀⋁⋂⋃⨀⨁⨂⨄⨆∫∬∭∮∯∰'])
@@ -23,12 +27,19 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     if (!text) return ''
     const props = []
     const variant = el?.getAttribute('mathvariant')
-    if (plain) props.push('<m:nor/>')
-    if (SCRIPT[variant]) props.push(`<m:scr m:val="${SCRIPT[variant]}"/>`)
     // 多字母的識別字（sin、lim）與 \mathrm 用正體
     const sty = STYLE[variant] || (el?.localName === 'mi' && [...text].length > 1 ? 'p' : '')
-    if (sty) props.push(`<m:sty m:val="${sty}"/>`)
-    return `<m:r>${props.length ? `<m:rPr>${props.join('')}</m:rPr>` : ''}<m:t xml:space="preserve">${esc(text)}</m:t></m:r>`
+    // m:nor（一般文字，\text）與 m:scr、m:sty 互斥：一般文字的粗體、斜體改寫在 w:rPr
+    let wPr = ''
+    if (plain) {
+      props.push('<m:nor/>')
+      wPr = `${sty.includes('b') ? '<w:b/>' : ''}${sty.includes('i') ? '<w:i/>' : ''}`
+    } else {
+      if (SCRIPT[variant]) props.push(`<m:scr m:val="${SCRIPT[variant]}"/>`)
+      if (sty) props.push(`<m:sty m:val="${sty}"/>`)
+    }
+    const rPr = (props.length ? `<m:rPr>${props.join('')}</m:rPr>` : '') + (wPr ? `<w:rPr>${wPr}</w:rPr>` : '')
+    return `<m:r>${rPr}<m:t xml:space="preserve">${esc(text)}</m:t></m:r>`
   }
 
   const opText = el => (el?.localName === 'mo' ? el.textContent.trim() : '')
@@ -64,7 +75,8 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         const arg = next && !naryBase(next) && next.localName !== 'mo' ? conv(next) : ''
         if (arg) i++
         const op = el.localName === 'mo' ? nary(el, null, null) : conv(el)
-        out.push(op.replace('<m:e/></m:nary>', `${wrap('e', arg)}</m:nary>`))
+        // 以函式替換：arg 含文件內容，字串形式會把其中的 $& 等當成替換樣式
+        out.push(op.replace('<m:e/></m:nary>', () => `${wrap('e', arg)}</m:nary>`))
       } else if (funcName(el, next)) {
         if (el.localName === 'mi') {
           i++ // U+2061
@@ -170,11 +182,12 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         if (/^right left( right left)*$/.test(el.getAttribute('columnalign') || '')) {
           const line = r =>
             kids(r)
-              .map((cell, i) => (i % 2 ? all(cell).replace(/^<m:r>(<m:rPr>)?/, (_, pr) => (pr ? '<m:r><m:rPr><m:aln/>' : '<m:r><m:rPr><m:aln/></m:rPr>')) : all(cell)))
+              // 對齊點 m:aln 在 m:rPr 的最後
+              .map((cell, i) => (i % 2 ? all(cell).replace(/^<m:r>(?:<m:rPr>(.*?)<\/m:rPr>)?/, (_, pr = '') => `<m:r><m:rPr>${pr}<m:aln/></m:rPr>`) : all(cell)))
               .join('')
           return `<m:eqArr>${rows.map(r => wrap('e', line(r))).join('')}</m:eqArr>`
         }
-        const cols = Math.max(1, ...rows.map(r => kids(r).length))
+        const cols = rows.reduce((m, r) => Math.max(m, kids(r).length), 1)
         // 每一欄的對齊（aligned 環境是右、左交錯）
         const align = (el.getAttribute('columnalign') || 'center').split(/\s+/)
         const mcs = Array.from({ length: cols }, (_, i) => {
