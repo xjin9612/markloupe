@@ -5,7 +5,8 @@
 // 商店接受 1280×800 或 640×400；以 1280×800、1 倍縮放截圖，畫面就是使用者實際看到的大小
 // 字型取決於執行的作業系統，建議在 Windows 上產生（Segoe UI、微軟正黑體），與多數使用者看到的一致
 import { createRequire } from 'node:module'
-import { mkdtempSync, mkdirSync, readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -188,6 +189,10 @@ for (const { lang, dir, demo, table: tableDoc, readme, text, promoText, captions
   const sw = ctx.serviceWorkers()[0] || (await ctx.waitForEvent('serviceworker'))
   // 每張都從文件頂端開始，不受前一張的閱讀位置影響
   await sw.evaluate(() => Markloupe.saveSettings({ rememberScroll: false }))
+  // 檔案分頁只列出進版控的項目：本機才有的檔案（個人筆記、本機設定）不入鏡
+  const tracked = new Set(execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').map(p => p.split('/')[0]))
+  const localOnly = readdirSync(root).filter(n => !tracked.has(n))
+  await sw.evaluate(names => Markloupe.saveSettings({ fileIgnore: [Markloupe.DEFAULTS.fileIgnore, ...names].join(', ') }), localOnly)
 
   /** 以指定主題與配色開啟文件，等字型、Mermaid、公式都畫完 */
   async function open(url, theme, palette = 'github') {
