@@ -177,6 +177,9 @@
   "printTocTitle": {
     "message": "目录"
   },
+  "printTocEmpty": {
+    "message": "这份文档没有可列入目录的标题"
+  },
   "exportDone": {
     "message": "已导出 $1"
   },

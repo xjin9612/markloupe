@@ -2538,6 +2538,17 @@ try {
       await sp.close()
     }
     assert.equal(await page.locator('.ml-print-toc').count(), 0, '加上目錄的列印結束後移除目錄')
+    // 只有文件標題、沒有其他標題：「加上目錄」停用
+    const only = join(work, 'print-title-only.md')
+    writeFileSync(only, '# 只有標題\n\n內文\n')
+    const op = await openDoc(pathToFileURL(only).href)
+    try {
+      await op.click('.ml-tool-print')
+      assert.equal(await op.getAttribute('.ml-menu-item:has-text("開頭加上目錄")', 'aria-disabled'), 'true')
+      await op.keyboard.press('Escape')
+    } finally {
+      await op.close()
+    }
     // 列印樣式：只印一節時，其他內容不印
     await page.evaluate(() => {
       document.documentElement.classList.add('ml-print-section')

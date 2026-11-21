@@ -913,12 +913,13 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     printMenu() {
       const heading = this.toc.items[this.toc.activeIndex]?.heading
       const name = heading?.dataset.mlText || ''
+      const hasToc = this.printTocItems().items.length > 0
       Markloupe.openMenu({
         anchor: this.printBtn,
         label: t('printMenu'),
         items: [
           { label: t('printAll'), icon: 'print', fn: () => this.print() },
-          { label: t('printWithToc'), icon: 'menu', fn: () => this.print({ toc: true }) },
+          { label: t('printWithToc'), icon: 'menu', fn: () => this.print({ toc: true }), disabled: hasToc ? undefined : t('printTocEmpty') },
           {
             label: heading ? t('printSection', name.length > 30 ? `${name.slice(0, 29)}…` : name) : t('printSectionNone'),
             icon: 'file',
@@ -940,9 +941,11 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       const undo = []
       try {
         await this.setPrinting(true)
+        await Markloupe.loadImages(this.article)
+        // 等待期間自動更新可能已重繪：目錄與標記在等待之後才加，緊接著開啟對話框；標題已被換掉時依 id 重新找
+        if (section && !section.isConnected) section = section.id ? document.getElementById(section.id) : null
         if (toc) undo.push(this.addPrintToc())
         if (section) undo.push(this.markPrintSection(section))
-        await Markloupe.loadImages(this.article)
         window.print() // 對話框關閉後才返回；afterprint 會還原主題
       } finally {
         for (const fn of undo) fn()
@@ -955,11 +958,16 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
      * 列印用的目錄，層級與側邊欄相同；回傳移除它的函式。
      * 文件以唯一的最上層標題開頭時，那是文件標題：目錄放在它後面，也不列入目錄
      */
-    addPrintToc() {
-      let items = this.toc.items.filter(it => it.level <= this.toc.depth)
+    /** 列入列印目錄的標題；以唯一的最上層標題開頭時，那個標題（title）不列入 */
+    printTocItems() {
+      const items = this.toc.items.filter(it => it.level <= this.toc.depth)
       const first = this.article.querySelector(':scope > :not(.ml-frontmatter)')
       const title = items[0]?.heading === first && items.filter(it => it.level === items[0].level).length === 1 ? first : null
-      if (title) items = items.slice(1)
+      return { title, items: title ? items.slice(1) : items }
+    }
+
+    addPrintToc() {
+      const { title, items } = this.printTocItems()
       const minLevel = items.reduce((m, it) => Math.min(m, it.level), 6)
       const nav = h('nav', { class: 'ml-print-toc', attrs: { 'aria-label': t('printTocTitle') } }, [
         h('p', { class: 'ml-print-toc-title', text: t('printTocTitle') }),
