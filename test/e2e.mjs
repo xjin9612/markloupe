@@ -3324,9 +3324,9 @@ try {
   await sp.bringToFront()
   const inSec = fn => sp.evaluate(fn)
   // 等圖表與公式都畫完再檢查；放在 check 裡，逾時會記為失敗而不是中斷整個測試
-  await check('安全性：攻擊樣本載入完成（7 張圖表、公式都已繪製）', async () => {
+  await check('安全性：攻擊樣本載入完成（9 張圖表、公式都已繪製）', async () => {
     await sp.waitForFunction(
-      () => Document.prototype.querySelectorAll.call(document, '.ml-mermaid-view svg, .ml-mermaid-error').length === 7,
+      () => Document.prototype.querySelectorAll.call(document, '.ml-mermaid-view svg, .ml-mermaid-error').length === 9,
       null,
       { timeout: 20000 },
     )
@@ -3424,7 +3424,7 @@ try {
   })
   await check('安全性：安全的內容照常顯示', async () => {
     assert.equal(await sp.locator('#safe-png[src^="data:image/png"]').count(), 1)
-    assert.equal(await sp.locator('.ml-mermaid-view svg').count(), 7)
+    assert.equal(await sp.locator('.ml-mermaid-view svg').count(), 9)
     assert.ok((await sp.textContent('.markdown-body')).includes('本段應正常顯示'))
     const toc = await sp.locator('.ml-toc-list a').allTextContents()
     assert.ok(toc.includes('第三層') && toc.includes('第四層'), toc.join('|'))
