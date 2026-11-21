@@ -1,5 +1,5 @@
 'use strict'
-// 側邊欄「最近」分頁：釘選與最近開過的文件（與 popup 共用 background 記錄的清單）
+// 側邊欄「最近」分頁（只在本機文件）：釘選與最近開過的文件，與 popup 共用 background 記錄的清單
 var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
 ;(() => {
@@ -99,13 +99,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         if (res?.status === 'full') Markloupe.toast(t('recentPinFull', res.limit))
         return
       }
-      // 網頁不能連到本機檔案：改由 background 換頁；同一種網址照一般連結開啟（中鍵、Ctrl＋點擊開新分頁）
-      const link = e.target.closest('a')
-      if (!link || e.button || e.ctrlKey || e.metaKey || e.shiftKey) return
-      if (location.protocol !== 'file:' && url.startsWith('file:')) {
-        e.preventDefault()
-        chrome.runtime.sendMessage({ type: 'open-doc', url }).catch(() => {})
-      }
+      // 一般連結：同分頁開啟，中鍵或 Ctrl＋點擊開新分頁
     }
   }
 })()

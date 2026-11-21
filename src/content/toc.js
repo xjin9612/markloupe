@@ -63,15 +63,16 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         this.resizer,
       ])
 
-      // 「檔案」分頁只有本機檔案才有（網路上的資料夾無法列出內容）
+      // 「檔案」與「最近」分頁只有本機文件才有：網路上的資料夾無法列出內容；
+      // 側邊欄畫在頁面的 DOM 裡，網頁上同源的視窗讀得到，最近的清單（其他文件的網址與標題）不能放在網頁上
       if (location.protocol === 'file:') {
         this.files = new Markloupe.FileTree()
+        this.recent = new Markloupe.RecentList()
         this.el.insertBefore(this.files.el, this.resizer)
+        this.el.insertBefore(this.recent.el, this.resizer)
       } else {
-        this.tabFiles.hidden = true
+        this.tabs.hidden = true
       }
-      this.recent = new Markloupe.RecentList()
-      this.el.insertBefore(this.recent.el, this.resizer)
       this.setTab(app.view.sideTab, false)
 
       this.el.addEventListener('mouseenter', () => (this.hovering = true))
@@ -83,7 +84,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
     /** 切換「目錄｜檔案｜最近」分頁；檔案與最近的清單第一次切到時才讀取 */
     setTab(tab, save = true) {
-      if (!['toc', 'files', 'recent'].includes(tab) || (tab === 'files' && !this.files)) tab = 'toc'
+      if (!this.files || !['toc', 'files', 'recent'].includes(tab)) tab = 'toc'
       this.tab = tab
       for (const [name, btn] of [['toc', this.tabToc], ['files', this.tabFiles], ['recent', this.tabRecent]]) {
         btn.classList.toggle('active', tab === name)
@@ -91,7 +92,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       }
       this.tocNav.hidden = tab !== 'toc'
       if (this.files) this.files.el.hidden = tab !== 'files'
-      this.recent.el.hidden = tab !== 'recent'
+      if (this.recent) this.recent.el.hidden = tab !== 'recent'
       this.search.placeholder = t({ toc: 'tocSearch', files: 'filesSearch', recent: 'recentSearch' }[tab])
       if (tab === 'files' && !this.filesStarted) {
         this.filesStarted = true
@@ -115,7 +116,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       this.search.value = ''
       this.searchBox.hidden = true
       this.searchBtn.hidden = false
-      this.tabs.hidden = false
+      this.tabs.hidden = !this.files
       this.applyQuery()
     }
 

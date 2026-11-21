@@ -127,6 +127,12 @@ function updateFiles(tabId, fn) {
 }
 chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove(filesKey(tabId)))
 
+// 關閉「記錄最近開過的文件」（popup、同步或匯入設定）時清除最近的紀錄；釘選的保留
+chrome.storage.onChanged.addListener((changes, area) => {
+  const c = changes[Markloupe.SETTINGS_KEY]
+  if (area === 'local' && c && c.newValue?.recentFiles === false && c.oldValue?.recentFiles !== false) updateList(Markloupe.RECENT_KEY, () => [])
+})
+
 /*
  * 最近開過與釘選的文件（popup 列出）：存在 storage.local，不同步（本機路徑在各台電腦不同）。
  * 依序寫入，各分頁同時開啟文件也不會互相蓋掉
@@ -138,7 +144,7 @@ function updateList(key, fn) {
   listWrites = listWrites
     .then(async () => {
       const list = (await chrome.storage.local.get(key))[key] || []
-      await chrome.storage.local.set({ [key]: fn(list) })
+      await chrome.storage.local.set({ [key]: await fn(list) })
     })
     .catch(() => {})
   return listWrites
@@ -215,9 +221,12 @@ const HANDLERS = {
   /** 閱讀頁開啟時記進最近開過的文件；無痕視窗與關閉這項設定時不記 */
   async 'record-visit'(msg, sender) {
     const url = (sender.url || '').split('#')[0]
-    if (sender.tab?.incognito || !isDocUrl(url) || !(await Markloupe.loadSettings()).recentFiles) return { status: 'ok' }
+    if (sender.tab?.incognito || !isDocUrl(url)) return { status: 'ok' }
     const title = String(msg.title || '').trim().slice(0, 200)
-    await updateList(Markloupe.RECENT_KEY, list => [{ url, title, at: Date.now() }, ...list.filter(e => e.url !== url)].slice(0, RECENT_LIMIT))
+    // 在寫入佇列裡才檢查設定：剛關閉記錄（佇列裡有清除）時不會再寫進一筆
+    await updateList(Markloupe.RECENT_KEY, async list =>
+      (await Markloupe.loadSettings()).recentFiles ? [{ url, title, at: Date.now() }, ...list.filter(e => e.url !== url)].slice(0, RECENT_LIMIT) : list,
+    )
     // 釘選的文件換了標題時跟著更新
     await updateList(Markloupe.PINNED_KEY, list => list.map(e => (e.url === url && title ? { ...e, title } : e)))
     return { status: 'ok' }
@@ -243,15 +252,6 @@ const HANDLERS = {
       })
       if (full) return { status: 'full', limit: PINNED_LIMIT }
     } else return { status: 'error', error: 'invalid action' }
-    return { status: 'ok' }
-  },
-
-  /** 側邊欄「最近」分頁：網頁不能直接連到本機檔案，由 background 在同一分頁開啟清單中的文件 */
-  async 'open-doc'(msg, sender) {
-    const data = await chrome.storage.local.get([Markloupe.RECENT_KEY, Markloupe.PINNED_KEY])
-    const listed = [...(data[Markloupe.RECENT_KEY] || []), ...(data[Markloupe.PINNED_KEY] || [])].some(e => e.url === msg.url)
-    if (sender.tab?.id == null || !isDocUrl(msg.url) || !listed) return { status: 'error' }
-    await chrome.tabs.update(sender.tab.id, { url: msg.url })
     return { status: 'ok' }
   },
 
