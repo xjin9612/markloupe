@@ -32,8 +32,15 @@ const keyFile = join(work, 'key.pem')
 writeFileSync(keyFile, privateKey.export({ type: 'pkcs8', format: 'pem' }))
 const spki = publicKey.export({ type: 'spki', format: 'der' })
 
-// Chromium 打包後在資料夾旁產生 ext.crx，然後結束；headless 才能在沒有顯示器的 CI 上執行
-execFileSync(chromium.executablePath(), [`--pack-extension=${ext}`, `--pack-extension-key=${keyFile}`, '--headless=new', '--no-message-box'], { stdio: 'ignore', timeout: 60000 })
+// Chromium 打包後在資料夾旁產生 ext.crx，然後結束；headless 才能在沒有顯示器的 CI 上執行。
+// Linux 加 --no-sandbox（與 Playwright 啟動 Chromium 時相同）：Ubuntu 預設不讓一般程式建立 user namespace，沒有可用的 sandbox 時 Chromium 會直接中止
+const packArgs = [`--pack-extension=${ext}`, `--pack-extension-key=${keyFile}`, '--headless=new', '--no-message-box']
+if (process.platform === 'linux') packArgs.push('--no-sandbox')
+try {
+  execFileSync(chromium.executablePath(), packArgs, { stdio: ['ignore', 'ignore', 'pipe'], timeout: 60000 })
+} catch (e) {
+  throw new Error(`Chromium 打包失敗（${e.signal || e.status}）\n${String(e.stderr || '').slice(-2000)}`)
+}
 const chromeCrx = readFileSync(join(work, 'ext.crx'))
 
 await check('Chromium 打包的 CRX 能通過驗證，CRX ID 由公鑰算出，內含原本的 manifest.json', () => {
