@@ -101,8 +101,6 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         textWidth: saved.textWidth ?? settings.textWidth,
         focus: saved.focus ?? false, // 專注模式：隱藏工具列與側邊欄
         sideTab: saved.sideTab ?? 'toc', // 側邊欄分頁：toc | files
-        filesRoot: saved.filesRoot ?? null, // 檔案分頁的起點資料夾（同一分頁內切換檔案時沿用）
-        filesOpen: saved.filesOpen ?? [], // 檔案分頁已展開的子資料夾（相對起點）
       }
     }
 

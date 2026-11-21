@@ -1096,6 +1096,9 @@ try {
     await np.reload()
     await np.waitForSelector('.ml-files-file a[href$="deep.md"]')
     assert.equal(await np.locator('.ml-side-tab.active').textContent(), '檔案')
+    // 起點、展開狀態與清單不放頁面的 sessionStorage：同一分頁之後開啟的本機 HTML 讀得到
+    const stored = await np.evaluate(() => JSON.stringify({ ...sessionStorage }))
+    assert.ok(!stored.includes('inner.md') && !stored.includes('deeper') && !stored.includes('/nav/'), stored)
     // 搜尋：只找已展開的資料夾
     await np.keyboard.press('/')
     await np.keyboard.type('e')

@@ -64,11 +64,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
       // 「檔案」分頁只有本機檔案才有（網路上的資料夾無法列出內容）
       if (location.protocol === 'file:') {
-        this.files = new Markloupe.FileTree({
-          root: app.view.filesRoot,
-          open: app.view.filesOpen,
-          onChange: ({ root, open }) => app.setView({ filesRoot: root, filesOpen: open }),
-        })
+        this.files = new Markloupe.FileTree()
         this.el.insertBefore(this.files.el, this.resizer)
       } else {
         this.tabs.hidden = true
