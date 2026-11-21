@@ -1834,6 +1834,7 @@ try {
       await mermaidIs('dark')
       // 列印按鈕：對話框關閉後還原深色，按鈕可再按
       await mp.click('.ml-tool-print')
+      await mp.click('.ml-menu-item:has-text("列印全部")')
       await themeIs('dark')
       await mp.waitForFunction(() => !document.querySelector('.ml-tool-print').disabled)
       assert.equal(await mp.evaluate(() => localStorage.getItem('markloupe:theme')), 'dark', '等待畫面記住的仍是深色')
@@ -2352,6 +2353,90 @@ try {
     } finally {
       await page.emulateMedia({ media: null })
       await page.click('.ml-toolbar button:has-text("全部展開")')
+    }
+  })
+  await check('列印選單：加上目錄、只印目前這一節；列印後還原文件', async () => {
+    await page.bringToFront()
+    // 列印對話框開啟前（beforeprint）記下文件狀態
+    const snap = () =>
+      page.evaluate(() => {
+        window.mlPrintSnap = null
+        addEventListener(
+          'beforeprint',
+          () => {
+            const toc = document.querySelector('.ml-print-toc')
+            window.mlPrintSnap = {
+              toc: toc && [...toc.querySelectorAll('li')].map(li => `${li.className}|${li.textContent}`),
+              afterTitle: toc?.previousElementSibling?.tagName,
+              section: document.documentElement.classList.contains('ml-print-section'),
+              keep: [...document.querySelectorAll('.markdown-body > [data-ml-print-keep]')].map(el => el.tagName),
+              keepFirst: document.querySelector('.markdown-body > [data-ml-print-keep]')?.dataset.mlText,
+            }
+          },
+          { once: true },
+        )
+      })
+    const menu = async label => {
+      await page.click('.ml-tool-print')
+      await page.click(`.ml-menu-item:has-text("${label}")`)
+      await page.waitForFunction(() => !document.querySelector('.ml-tool-print').disabled)
+      return page.evaluate(() => window.mlPrintSnap)
+    }
+    await page.click('.ml-toc-list a:text("程式碼")')
+    await page.waitForFunction(() => document.querySelector('.ml-toc-list li.active > a')?.textContent === '程式碼')
+    await snap()
+    const withToc = await menu('開頭加上目錄')
+    assert.ok(withToc, '列印前觸發 beforeprint')
+    assert.equal(withToc.afterTitle, 'H1', '目錄放在文件標題之後')
+    assert.ok(withToc.toc.includes('ml-print-toc-l1|任務清單') && withToc.toc.includes('ml-print-toc-l1|程式碼'), withToc.toc.join(' / '))
+    assert.ok(!withToc.toc.some(x => x.endsWith('|Markloupe 功能測試')), '文件標題不列入目錄')
+    assert.equal(withToc.section, false)
+    // Chrome 會略過同一分頁中太頻繁的 window.print()：只印一節改在另一個分頁測
+    const sp = await openDoc()
+    try {
+      await sp.click('.ml-toc-list a:text("程式碼")')
+      await sp.waitForFunction(() => document.querySelector('.ml-toc-list li.active > a')?.textContent === '程式碼')
+      await sp.evaluate(() =>
+        addEventListener(
+          'beforeprint',
+          () => {
+            window.mlPrintSnap = {
+              section: document.documentElement.classList.contains('ml-print-section'),
+              keepFirst: document.querySelector('.markdown-body > [data-ml-print-keep]')?.dataset.mlText,
+              toc: !!document.querySelector('.ml-print-toc'),
+            }
+          },
+          { once: true },
+        ),
+      )
+      await sp.click('.ml-tool-print')
+      await sp.click('.ml-menu-item:has-text("只印這一節：程式碼")')
+      await sp.waitForFunction(() => !document.querySelector('.ml-tool-print').disabled)
+      assert.deepEqual(await sp.evaluate(() => window.mlPrintSnap), { section: true, keepFirst: '程式碼', toc: false })
+      // 列印後還原
+      assert.deepEqual(
+        await sp.evaluate(() => [document.querySelectorAll('.ml-print-toc, [data-ml-print-keep], [data-ml-print-path]').length, document.documentElement.classList.contains('ml-print-section')]),
+        [0, false],
+      )
+    } finally {
+      await sp.close()
+    }
+    assert.equal(await page.locator('.ml-print-toc').count(), 0, '加上目錄的列印結束後移除目錄')
+    // 列印樣式：只印一節時，其他內容不印
+    await page.evaluate(() => {
+      document.documentElement.classList.add('ml-print-section')
+      document.querySelector('.markdown-body h2[data-ml-text="程式碼"]').setAttribute('data-ml-print-keep', '')
+    })
+    try {
+      await page.emulateMedia({ media: 'print' })
+      assert.equal(await page.locator('.markdown-body h2[data-ml-text="程式碼"]').isVisible(), true)
+      assert.equal(await page.locator('.markdown-body h2[data-ml-text="任務清單"]').isVisible(), false)
+    } finally {
+      await page.emulateMedia({ media: null })
+      await page.evaluate(() => {
+        document.documentElement.classList.remove('ml-print-section')
+        document.querySelector('[data-ml-print-keep]')?.removeAttribute('data-ml-print-keep')
+      })
     }
   })
   await check('內文字型：襯線與自訂字型即時套用到內文，介面不受影響；自訂名稱不能注入樣式', async () => {

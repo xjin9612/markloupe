@@ -156,6 +156,27 @@
   "toolPrintTitle": {
     "message": "列印，或在列印對話框選「另存為 PDF」。摺疊的段落會展開，並改用淺色以便印在紙上"
   },
+  "printMenu": {
+    "message": "列印"
+  },
+  "printAll": {
+    "message": "列印全部"
+  },
+  "printWithToc": {
+    "message": "列印全部，開頭加上目錄"
+  },
+  "printSection": {
+    "message": "只印這一節：$1"
+  },
+  "printSectionNone": {
+    "message": "只印目前這一節"
+  },
+  "printSectionNoneTitle": {
+    "message": "先捲動到要列印的章節"
+  },
+  "printTocTitle": {
+    "message": "目錄"
+  },
   "exportDone": {
     "message": "已匯出 $1"
   },

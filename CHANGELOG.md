@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **Print / PDF** is now a menu: print everything, print everything with a table of contents at the start, or print only the section you are reading
+
 ## [1.10.0] - 2026-11-21
 
 ### Added

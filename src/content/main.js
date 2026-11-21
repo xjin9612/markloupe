@@ -205,14 +205,15 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       this.fontBtn = btn('ml-tool-font', 'text-size', '', t('toolFontSizeTitle'), () => this.toggleMenu(this.fontBtn, () => this.fontMenu()))
       this.copyMdBtn = btn('ml-tool-copy', 'copy', t('toolCopyMd'), t('toolCopyMdTitle'), () => this.toggleMenu(this.copyMdBtn, () => this.copyMenu(this.copyMdBtn)))
       this.exportBtn = btn('ml-tool-export', 'download', t('toolExport'), t('toolExportTitle'), () => this.toggleMenu(this.exportBtn, () => this.exportMenu()))
-      for (const b of [this.widthBtn, this.themeBtn, this.fontBtn, this.copyMdBtn, this.exportBtn]) {
+      this.printBtn = btn('ml-tool-print', 'print', t('toolPrint'), t('toolPrintTitle'), () => this.toggleMenu(this.printBtn, () => this.printMenu()))
+      for (const b of [this.widthBtn, this.themeBtn, this.fontBtn, this.copyMdBtn, this.exportBtn, this.printBtn]) {
         b.setAttribute('aria-haspopup', 'menu')
         b.setAttribute('aria-expanded', 'false')
       }
       // 加上選單的小箭頭
       setTool(this.copyMdBtn, 'copy', t('toolCopyMd'))
       setTool(this.exportBtn, 'download', t('toolExport'))
-      this.printBtn = btn('ml-tool-print', 'print', t('toolPrint'), t('toolPrintTitle'), () => this.print())
+      setTool(this.printBtn, 'print', t('toolPrint'))
       this.rawBtn = btn('ml-tool-raw', 'code', t('toolRaw'), t('toolRawTitle'), () => this.toggleRaw())
       // 用編輯器開啟：設定中選了編輯器且為本機檔案才顯示
       this.editBtn = btn('ml-tool-edit', 'edit', t('toolEdit'), t('toolEditTitle'), () => this.openInEditor())
@@ -906,20 +907,87 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       return this.applyLive()
     }
 
+    /** 列印選單：全部、全部加上目錄、只印目前閱讀的那一節 */
+    printMenu() {
+      const heading = this.toc.items[this.toc.activeIndex]?.heading
+      const name = heading?.dataset.mlText || ''
+      Markloupe.openMenu({
+        anchor: this.printBtn,
+        label: t('printMenu'),
+        items: [
+          { label: t('printAll'), icon: 'print', fn: () => this.print() },
+          { label: t('printWithToc'), icon: 'menu', fn: () => this.print({ toc: true }) },
+          {
+            label: heading ? t('printSection', name.length > 30 ? `${name.slice(0, 29)}…` : name) : t('printSectionNone'),
+            icon: 'file',
+            fn: () => this.print({ section: heading }),
+            disabled: heading ? undefined : t('printSectionNoneTitle'),
+          },
+        ],
+      })
+    }
+
     /**
      * 列印／存成 PDF：先改用淺色並等 Mermaid 重繪、延遲載入的圖片載完，再開啟列印對話框
      * 摺疊的段落與篩選掉的表格列由列印樣式（content.css 的 @media print）顯示
+     * @param {{toc?: boolean, section?: HTMLElement}} [opts] toc：開頭加上目錄；section：只印這個標題的那一節
      */
-    async print() {
+    async print({ toc = false, section = null } = {}) {
       if (this.printBtn.disabled) return
       this.printBtn.disabled = true
+      const undo = []
       try {
         await this.setPrinting(true)
+        if (toc) undo.push(this.addPrintToc())
+        if (section) undo.push(this.markPrintSection(section))
         await Markloupe.loadImages(this.article)
         window.print() // 對話框關閉後才返回；afterprint 會還原主題
       } finally {
+        for (const fn of undo) fn()
         this.setPrinting(false)
         this.printBtn.disabled = false
+      }
+    }
+
+    /**
+     * 列印用的目錄，層級與側邊欄相同；回傳移除它的函式。
+     * 文件以唯一的最上層標題開頭時，那是文件標題：目錄放在它後面，也不列入目錄
+     */
+    addPrintToc() {
+      let items = this.toc.items.filter(it => it.level <= this.toc.depth)
+      const first = this.article.querySelector(':scope > :not(.ml-frontmatter)')
+      const title = items[0]?.heading === first && items.filter(it => it.level === items[0].level).length === 1 ? first : null
+      if (title) items = items.slice(1)
+      const minLevel = items.reduce((m, it) => Math.min(m, it.level), 6)
+      const nav = h('nav', { class: 'ml-print-toc', attrs: { 'aria-label': t('printTocTitle') } }, [
+        h('p', { class: 'ml-print-toc-title', text: t('printTocTitle') }),
+        h(
+          'ul',
+          {},
+          items.map(it => h('li', { class: `ml-print-toc-l${it.level - minLevel + 1}` }, [h('a', { href: `#${encodeURIComponent(it.heading.id)}`, text: it.heading.dataset.mlText })])),
+        ),
+      ])
+      if (title) title.after(nav)
+      else this.article.prepend(nav)
+      return () => nav.remove()
+    }
+
+    /**
+     * 只印標題的那一節：標記要印的節點與通往標題的外層容器，其他內容由列印樣式隱藏；回傳還原的函式。
+     * 這一節引用了腳註時，文末的腳註區一併印出
+     */
+    markPrintSection(heading) {
+      const keep = this.sectionNodes(heading)
+      if (keep.some(n => n.querySelector('.footnote-ref'))) keep.push(...this.article.querySelectorAll(':scope > :is(.footnotes-sep, .footnotes)'))
+      const path = []
+      for (let e = heading.parentElement; e && e !== this.article; e = e.parentElement) path.push(e)
+      for (const n of keep) n.setAttribute('data-ml-print-keep', '')
+      for (const n of path) n.setAttribute('data-ml-print-path', '')
+      document.documentElement.classList.add('ml-print-section')
+      return () => {
+        for (const n of keep) n.removeAttribute('data-ml-print-keep')
+        for (const n of path) n.removeAttribute('data-ml-print-path')
+        document.documentElement.classList.remove('ml-print-section')
       }
     }
 
