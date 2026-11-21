@@ -71,7 +71,7 @@ chrome.commands.onCommand.addListener(onCommand)
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (sender.id !== chrome.runtime.id) return
-  const handler = HANDLERS[msg?.type]
+  const handler = Object.hasOwn(HANDLERS, msg?.type) && HANDLERS[msg.type]
   if (!handler) return
   handler(msg, sender).then(reply, err => reply({ status: 'error', error: `${err.name}: ${err.message}` }))
   return true // 非同步回覆

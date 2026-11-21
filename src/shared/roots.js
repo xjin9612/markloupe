@@ -25,6 +25,7 @@ Markloupe.Roots = (() => {
         const req = fn(tx.objectStore(STORE))
         tx.oncomplete = () => resolve(req?.result)
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error || new DOMException('Transaction aborted', 'AbortError'))
       })
     } finally {
       db.close()
