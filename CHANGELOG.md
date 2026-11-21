@@ -9,9 +9,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Image** on a Mermaid diagram copies it as a PNG, or downloads it as a PNG or SVG file. Images always use light colors, like Word export, and the PNG has a solid background. Copying needs an https page or a local file
 - In local documents, links to files or folders that do not exist get a wavy underline and a tooltip. Markloupe checks only the names in the linked folders and never reads those files. Turn it off in the popup → **Layout defaults**
 - Line numbers for code blocks (popup → **Layout defaults**). Copying code never includes them. ```` ```js {1,3-5} ```` highlights lines, and `showLineNumbers` or `:line-numbers` after the language turns on line numbers for one block (`:no-line-numbers` turns them off)
-- Obsidian syntax: `[[Note]]`, `[[Note#Heading|text]]` and `[[#Heading]]` become links to the file in the same folder, `![[pic.png]]` shows the image, and callouts accept Obsidian types, a custom title and folding (`> [!faq]- Title`). Other `![[…]]` embeds show as links
+- Obsidian syntax: `[[Note]]`, `[[Note#Heading|text]]` and `[[#Heading]]` become links to the file in the same folder, `![[pic.png]]` shows the image, and callouts accept Obsidian types, a custom title and folding (`> [!faq]- Title`). Other `![[…]]` embeds show as links. `[[1]](url)`, the citation style of pages converted from Wikipedia, stays a normal link with the text `[1]`
 - Live reload highlights what changed: changed blocks get a colored bar, and a line marks removed text. **N changes** in the toolbar jumps to the next one, opening folded sections. A mark goes away a few seconds after it is on screen while you use the page, so marks wait while you work in your editor; changes you have not seen stay marked through later saves, and disappear if you undo them. Turn it off in the popup → **Auto refresh**
 - **Copy content** puts Mermaid diagrams on the clipboard as light-colored PNG images, so they show up when you paste into Word or Google Docs instead of the diagram source. On plain http pages the copied HTML keeps the diagram as before
+
+### Fixed
+- Checking a task no longer writes to another file with the same name and content in a different authorized folder, and no longer overwrites a save your editor made a moment before
+- A custom CSS larger than 8 KB is no longer replaced by an older synced copy when another computer changes a setting
+- Settings changed in the popup and on reading pages at the same moment no longer overwrite each other. Quick repeated changes, such as pressing `+` several times, sync as one update instead of reaching the browser's sync limit
+- When Chrome's site access for Markloupe is limited to specific sites, Markdown on those sites is rendered again
+- Word export no longer produces a file Word cannot open for formulas containing `$&` or control characters, footnote links with a broken `%` code, image widths that are not a number, lists nested more than 9 levels, empty tables, or tables wider than 63 columns. A list that starts at 0 keeps its number, and the same image used twice is stored once
+- `$$E=mc^2$$ is famous.` at the start of a line is inline math and no longer swallows the following paragraphs; display math does not continue across a blank line
+- Some long or unusual inputs, such as a callout title followed by thousands of spaces, many unclosed `$$` lines or a huge highlighted-line range, no longer freeze the page or stop live reload
+- Task checkboxes written on the line after the list marker (`-` then `[ ] task`) or after two list markers (`- - [ ] task`) can be checked off, and a lone CR line break in the front matter no longer shifts which line a checkbox writes to
+- Front matter keeps a `#` inside quotes, and an empty front matter (`---` right after `---`) is hidden
+- A heading such as `# ml-mermaid-1` is no longer removed when the document has a Mermaid diagram
+
+### Security
+- Mermaid `%%{init}%%` directives and diagram front matter can no longer turn on HTML labels, so diagrams still contain no HTML
+- The Files tab keeps its folder tree in the extension's own storage instead of the page's `sessionStorage`, so a local HTML file opened later in the same tab cannot read the folder names
+- Reading positions are not recorded in incognito windows
+- Word export keeps links to local files as written in the document, without your local folder path
+- Footnote previews show only footnotes of the document
 
 ## [1.9.0] - 2026-11-14
 
