@@ -177,6 +177,9 @@
   "printTocTitle": {
     "message": "目錄"
   },
+  "printTocEmpty": {
+    "message": "這份文件沒有可列入目錄的標題"
+  },
   "exportDone": {
     "message": "已匯出 $1"
   },

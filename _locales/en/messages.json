@@ -177,6 +177,9 @@
   "printTocTitle": {
     "message": "Contents"
   },
+  "printTocEmpty": {
+    "message": "This document has no headings for a table of contents"
+  },
   "exportDone": {
     "message": "Exported $1"
   },
