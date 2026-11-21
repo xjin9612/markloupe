@@ -100,7 +100,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
         tocWidth: saved.tocWidth ?? settings.tocWidth,
         textWidth: saved.textWidth ?? settings.textWidth,
         focus: saved.focus ?? false, // 專注模式：隱藏工具列與側邊欄
-        sideTab: saved.sideTab ?? 'toc', // 側邊欄分頁：toc | files
+        sideTab: saved.sideTab ?? 'toc', // 側邊欄分頁：toc | files | recent
       }
     }
 

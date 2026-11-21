@@ -131,8 +131,8 @@ chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove(filesKe
  * 最近開過與釘選的文件（popup 列出）：存在 storage.local，不同步（本機路徑在各台電腦不同）。
  * 依序寫入，各分頁同時開啟文件也不會互相蓋掉
  */
-const RECENT_LIMIT = 20 // 本機檔案與網頁各記幾份
-const PINNED_LIMIT = 50
+const RECENT_LIMIT = 20 // 最近開過的文件最多記幾份（本機與網頁合計）
+const PINNED_LIMIT = 20 // 釘選滿了要先取消一個才能再釘
 let listWrites = Promise.resolve()
 function updateList(key, fn) {
   listWrites = listWrites
@@ -217,17 +217,16 @@ const HANDLERS = {
     const url = (sender.url || '').split('#')[0]
     if (sender.tab?.incognito || !isDocUrl(url) || !(await Markloupe.loadSettings()).recentFiles) return { status: 'ok' }
     const title = String(msg.title || '').trim().slice(0, 200)
-    let files = 0
-    let web = 0
-    await updateList(Markloupe.RECENT_KEY, list =>
-      [{ url, title, at: Date.now() }, ...list.filter(e => e.url !== url)].filter(e => (e.url.startsWith('file:') ? ++files : ++web) <= RECENT_LIMIT),
-    )
+    await updateList(Markloupe.RECENT_KEY, list => [{ url, title, at: Date.now() }, ...list.filter(e => e.url !== url)].slice(0, RECENT_LIMIT))
     // 釘選的文件換了標題時跟著更新
     await updateList(Markloupe.PINNED_KEY, list => list.map(e => (e.url === url && title ? { ...e, title } : e)))
     return { status: 'ok' }
   },
 
-  /** popup 修改清單：pin、unpin、remove（從最近移除）、clear（清空最近） */
+  /**
+   * popup 與側邊欄修改清單：pin、unpin、remove（從最近移除）、clear（清空最近）
+   * @returns {{status: 'ok'|'full'|'error', limit?: number}} full：釘選已滿 limit 份
+   */
   async 'recent-update'(msg) {
     const { action, url } = msg
     if (action === 'clear') await updateList(Markloupe.RECENT_KEY, () => [])
@@ -236,8 +235,23 @@ const HANDLERS = {
     else if (action === 'unpin') await updateList(Markloupe.PINNED_KEY, list => list.filter(e => e.url !== url))
     else if (action === 'pin') {
       const title = String(msg.title || '').trim().slice(0, 200)
-      await updateList(Markloupe.PINNED_KEY, list => (list.some(e => e.url === url) ? list : [...list, { url, title }].slice(-PINNED_LIMIT)))
+      let full = false
+      await updateList(Markloupe.PINNED_KEY, list => {
+        if (list.some(e => e.url === url)) return list
+        full = list.length >= PINNED_LIMIT
+        return full ? list : [...list, { url, title }]
+      })
+      if (full) return { status: 'full', limit: PINNED_LIMIT }
     } else return { status: 'error', error: 'invalid action' }
+    return { status: 'ok' }
+  },
+
+  /** 側邊欄「最近」分頁：網頁不能直接連到本機檔案，由 background 在同一分頁開啟清單中的文件 */
+  async 'open-doc'(msg, sender) {
+    const data = await chrome.storage.local.get([Markloupe.RECENT_KEY, Markloupe.PINNED_KEY])
+    const listed = [...(data[Markloupe.RECENT_KEY] || []), ...(data[Markloupe.PINNED_KEY] || [])].some(e => e.url === msg.url)
+    if (sender.tab?.id == null || !isDocUrl(msg.url) || !listed) return { status: 'error' }
+    await chrome.tabs.update(sender.tab.id, { url: msg.url })
     return { status: 'ok' }
   },
 

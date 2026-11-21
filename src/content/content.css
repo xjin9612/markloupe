@@ -320,6 +320,21 @@ html.markloupe :is(.ml-files-row, .ml-files-bar) > .ml-icon { color: var(--muted
 html.markloupe .ml-files-row { gap: 6px; }
 html.markloupe .ml-files-name { overflow: hidden; text-overflow: ellipsis; }
 html.markloupe .ml-files-name mark { background: var(--mark); color: inherit; border-radius: 2px; }
+/* 最近分頁：每列右側有釘選與移除按鈕，滑過或聚焦時才顯示 */
+html.markloupe .ml-recent-head { padding: 8px 12px 2px; color: var(--muted); font-size: 12px; font-weight: 600; }
+html.markloupe .ml-recent-item { display: flex; align-items: center; }
+html.markloupe .ml-recent-item > .ml-files-row { flex: 1; min-width: 0; padding-left: 8px; }
+/* 底色畫在整列（含右側按鈕），左側強調線仍在連結上 */
+html.markloupe .ml-recent-item:hover { background: var(--hover); }
+html.markloupe .ml-recent-item.active { background: var(--accent-soft); }
+html.markloupe .ml-recent-item > .ml-files-row:hover, html.markloupe .ml-files-file.ml-recent-item.active > a { background: none; }
+html.markloupe .ml-recent-text { display: grid; min-width: 0; }
+html.markloupe .ml-recent-where { overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; font-weight: 400; }
+html.markloupe .ml-recent-act { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; visibility: hidden; }
+html.markloupe .ml-recent-act:hover { background: var(--hover); color: var(--fg); }
+html.markloupe .ml-recent-act[aria-pressed=true] { color: var(--accent); }
+html.markloupe .ml-recent-item:is(:hover, :focus-within) .ml-recent-act, html.markloupe .ml-recent-act[aria-pressed=true] { visibility: visible; }
+html.markloupe .ml-recent-item > .ml-recent-act:last-child { margin-right: 6px; }
 html.markloupe .ml-files-note { padding: 3px 12px 3px calc(var(--indent) + 16px); color: var(--muted); font-size: 12px; }
 html.markloupe .ml-toc-nav { flex: 1; overflow-y: auto; padding: 8px 0 24px; }
 html.markloupe .ml-toc-list { list-style: none; margin: 0; padding: 0; }

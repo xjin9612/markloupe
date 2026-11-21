@@ -480,6 +480,24 @@
   "popupTitle": {
     "message": "Markloupe 設定"
   },
+  "tabRecent": {
+    "message": "最近"
+  },
+  "recentSearch": {
+    "message": "搜尋最近與釘選的文件"
+  },
+  "recentPinned": {
+    "message": "釘選"
+  },
+  "recentRecent": {
+    "message": "最近開過"
+  },
+  "recentNoMatch": {
+    "message": "沒有符合的文件"
+  },
+  "recentPinFull": {
+    "message": "釘選已滿 $1 份，請先取消一個"
+  },
   "docxTemplate": {
     "message": "Word 範本"
   },

@@ -336,7 +336,10 @@
     const pin = node('button', { type: 'button', className: 'icon-btn', title: label }, [Markloupe.icon('pin')])
     pin.setAttribute('aria-pressed', String(pinned))
     pin.setAttribute('aria-label', label)
-    pin.addEventListener('click', () => updateRecent({ action: pinned ? 'unpin' : 'pin', url: entry.url, title: entry.title }))
+    pin.addEventListener('click', async () => {
+      const res = await updateRecent({ action: pinned ? 'unpin' : 'pin', url: entry.url, title: entry.title })
+      if (res?.status === 'full') say(t('recentPinFull', res.limit), 4000)
+    })
     const kids = [open, pin]
     if (!pinned) {
       const remove = node('button', { type: 'button', className: 'icon-btn', title: t('recentRemove') }, [Markloupe.icon('close')])

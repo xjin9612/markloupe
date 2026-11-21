@@ -47,7 +47,7 @@ READ AND NAVIGATE
 • Sidebar outline with the current section highlighted and heading search
 • Fold any section; fold or unfold everything at once
 • Files tab: browse the Markdown files and subfolders next to the document, free
-• Reopen recent and pinned documents from the popup
+• Recent tab: reopen recent and pinned documents, also from the popup
 • Links to missing local files get a wavy underline
 • Live reload for local files that keeps your scroll position, folds and table state, and highlights what changed
 • Open the file in VS Code at the section you're reading
@@ -98,7 +98,7 @@ Markloupe 把你在瀏覽器中開啟的 Markdown 檔案變成清楚好讀的頁
 • 側邊欄目錄：標示目前章節，可搜尋標題
 • 任何段落都能摺疊，也能一次全部摺疊或展開
 • 檔案分頁：瀏覽同一資料夾中的 Markdown 檔案與子資料夾，完全免費
-• 從彈出視窗再次開啟最近開過或釘選的文件
+• 最近分頁：再次開啟最近開過或釘選的文件，彈出視窗也有
 • 指向不存在本機檔案的連結加上波浪底線
 • 本機檔案自動更新，保留捲動位置、摺疊狀態與表格設定，並標出改動
 • 以 VS Code 開啟檔案並跳到目前閱讀的段落
@@ -151,7 +151,7 @@ Markloupe 把你在浏览器中打开的 Markdown 文件变成清晰易读的页
 • 侧边栏目录：标出当前章节，可搜索标题
 • 任何段落都能折叠，也能一次全部折叠或展开
 • “文件”标签：浏览同一文件夹中的 Markdown 文件与子文件夹，完全免费
-• 从弹出窗口再次打开最近打开或固定的文档
+• 最近标签：再次打开最近打开或固定的文档，弹出窗口也有
 • 指向不存在本地文件的链接加上波浪下划线
 • 本机文件自动更新，保留滚动位置、折叠状态与表格设置，并标出改动
 • 以 VS Code 打开文件并跳到当前阅读的段落
@@ -252,7 +252,7 @@ All JavaScript, including third-party libraries (markdown-it and its plugins, hi
 
 理由：商店所說的「收集」是指資料離開使用者的裝置。Markloupe 除了閱讀設定之外，存放的資料都只留在本機，不傳送給任何人，且在隱私權政策中逐項列出：
 - 閱讀位置：最近 300 個檔案的網址與捲動位置，用於回到上次閱讀處
-- 最近開過與釘選的文件：網址與標題，用於在彈出視窗列出
+- 最近開過與釘選的文件：網址與標題，用於在側邊欄與彈出視窗列出
 - 使用者選的 Word 範本中的樣式定義，用於匯出 Word
 - 已授權資料夾的存取權
 - 各分頁資料夾樹的狀態，關閉分頁或瀏覽器時刪除

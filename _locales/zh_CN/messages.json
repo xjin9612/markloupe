@@ -480,6 +480,24 @@
   "popupTitle": {
     "message": "Markloupe 设置"
   },
+  "tabRecent": {
+    "message": "最近"
+  },
+  "recentSearch": {
+    "message": "搜索最近与固定的文档"
+  },
+  "recentPinned": {
+    "message": "固定"
+  },
+  "recentRecent": {
+    "message": "最近打开"
+  },
+  "recentNoMatch": {
+    "message": "没有符合的文档"
+  },
+  "recentPinFull": {
+    "message": "固定已满 $1 份，请先取消一个"
+  },
   "docxTemplate": {
     "message": "Word 模板"
   },

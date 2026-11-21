@@ -1308,7 +1308,7 @@ try {
     assert.equal(kept['file:///incognito.md'], undefined, '無痕視窗不記錄')
     assert.equal(kept['file:///normal.md'], 45)
   })
-  await check('最近開過的文件：開啟時記錄、各類最多 20 份、無痕與關閉設定時不記；popup 可釘選、移除、清除', async () => {
+  await check('最近開過的文件：開啟時記錄、最多 20 份、釘選最多 20 份、無痕與關閉設定時不記；popup 可釘選、移除、清除', async () => {
     const lists = () => sw.evaluate(async () => chrome.storage.local.get([Markloupe.RECENT_KEY, Markloupe.PINNED_KEY]))
     const saved = await lists()
     try {
@@ -1317,7 +1317,7 @@ try {
       await until(async () => (await lists())['markloupe:recent']?.[0]?.url === localUrl)
       assert.equal((await lists())['markloupe:recent'][0].title, await rp.title())
       await rp.close()
-      // 本機與網頁各最多 20 份；無痕視窗、不是文件的網址不記
+      // 本機與網頁合計最多 20 份；無痕視窗、不是文件的網址不記
       await sw.evaluate(async () => {
         for (let i = 0; i < 25; i++) await HANDLERS['record-visit']({ title: `f${i}` }, { url: `file:///d/f${i}.md#x` })
         for (let i = 0; i < 3; i++) await HANDLERS['record-visit']({ title: `w${i}` }, { url: `https://example.com/w${i}.md` })
@@ -1325,7 +1325,7 @@ try {
         await HANDLERS['record-visit']({ title: 'x' }, { url: 'chrome-extension://abc/x.md' })
       })
       let recent = (await lists())['markloupe:recent']
-      assert.equal(recent.filter(e => e.url.startsWith('file:')).length, 20)
+      assert.equal(recent.length, 20)
       assert.equal(recent.filter(e => e.url.startsWith('https:')).length, 3)
       assert.equal(recent[0].url, 'https://example.com/w2.md', '新的在前')
       assert.ok(recent.some(e => e.url === 'file:///d/f24.md'), '不含 #')
@@ -1336,14 +1336,14 @@ try {
         await pop.goto(`chrome-extension://${sw.url().split('/')[2]}/src/popup/popup.html`)
         await pop.waitForSelector('.recent-item')
         assert.equal(await pop.locator('.recent-item').count(), 5)
-        assert.equal(await pop.textContent('#recent-more'), '還有 18 份')
+        assert.equal(await pop.textContent('#recent-more'), '還有 15 份')
         await pop.locator('.recent-item').nth(1).hover()
         await pop.locator('.recent-item').nth(1).locator('button[aria-pressed=false]').click()
         await pop.waitForFunction(() => document.querySelector('.recent-item button[aria-pressed=true]'))
         assert.equal(await pop.locator('.recent-item').first().locator('.recent-title').textContent(), 'w1')
         assert.deepEqual((await lists())['markloupe:pinned'], [{ url: 'https://example.com/w1.md', title: 'w1' }])
         await pop.click('#recent-more')
-        assert.equal(await pop.locator('.recent-item').count(), 23)
+        assert.equal(await pop.locator('.recent-item').count(), 20)
         // 移除一份最近的
         const before = (await lists())['markloupe:recent'].length
         await pop.locator('.recent-item').nth(1).hover()
@@ -1360,12 +1360,59 @@ try {
       } finally {
         await pop.close()
       }
+      // 釘選最多 20 份，滿了回報 full
+      const pins = await sw.evaluate(async () => {
+        const out = []
+        for (let i = 0; i < 21; i++) out.push((await HANDLERS['recent-update']({ action: 'pin', url: `file:///d/p${i}.md`, title: `p${i}` })).status)
+        return out
+      })
+      assert.deepEqual([pins.filter(x => x === 'ok').length, pins.at(-1)], [19, 'full'], '已有 1 份釘選，再釘 19 份就滿')
+      assert.equal((await lists())['markloupe:pinned'].length, 20)
       // 不接受其他網址與動作
       const bad = await sw.evaluate(() => Promise.all([HANDLERS['recent-update']({ action: 'pin', url: 'javascript:alert(1)' }), HANDLERS['recent-update']({ action: 'x', url: 'file:///a.md' })]))
       assert.deepEqual(bad.map(r => r.status), ['error', 'error'])
     } finally {
       await sw.evaluate(s => chrome.storage.local.set(s), { 'markloupe:recent': saved['markloupe:recent'] || [], 'markloupe:pinned': saved['markloupe:pinned'] || [] })
       await sw.evaluate(() => Markloupe.saveSettings({ recentFiles: true }))
+    }
+  })
+  await check('側邊欄「最近」分頁：列出釘選與最近開過的文件、標出目前文件、可搜尋、釘選與開啟', async () => {
+    const lists = () => sw.evaluate(async () => chrome.storage.local.get([Markloupe.RECENT_KEY, Markloupe.PINNED_KEY]))
+    const saved = await lists()
+    const other = pathToFileURL(join(work, 'nav', '1-a.md')).href
+    try {
+      await sw.evaluate(
+        ([a, b]) => chrome.storage.local.set({ [Markloupe.RECENT_KEY]: [{ url: b, title: '另一份', at: 1 }], [Markloupe.PINNED_KEY]: [{ url: 'https://example.com/p.md', title: '網頁文件' }] }),
+        [localUrl, other],
+      )
+      const rp = await openDoc()
+      try {
+        await rp.click('.ml-side-tab:text("最近")')
+        await rp.waitForFunction(() => document.querySelectorAll('.ml-recent-item').length === 3)
+        const rows = await rp.$$eval('.ml-recent-list > li', els => els.map(li => `${li.className.includes('active') ? '*' : ''}${li.querySelector('.ml-files-name')?.textContent ?? li.textContent}`))
+        const title = await rp.title()
+        assert.deepEqual(rows, ['釘選', '網頁文件', '最近開過', `*${title}`, '另一份'])
+        assert.equal(await rp.locator('.ml-toc-stats').isVisible(), false, '字數只在目錄分頁顯示')
+        // 搜尋
+        await rp.keyboard.press('/')
+        await rp.keyboard.type('另一')
+        await rp.waitForFunction(() => document.querySelectorAll('.ml-recent-item').length === 1)
+        await rp.keyboard.press('Escape')
+        // 從側邊欄釘選
+        const row = rp.locator('.ml-recent-item', { hasText: '另一份' })
+        await row.hover()
+        await row.locator('[data-act="pin"]').click()
+        await until(async () => (await lists())['markloupe:pinned'].length === 2)
+        await rp.waitForFunction(() => document.querySelector('.ml-recent-list > li:nth-child(3)')?.textContent.includes('另一份'))
+        // 點清單中的本機文件在同一分頁開啟，分頁維持在「最近」
+        await rp.click('.ml-recent-item:has-text("另一份") a')
+        await rp.waitForURL(/1-a\.md$/)
+        await rp.waitForSelector('.ml-side-tab.active:text("最近")')
+      } finally {
+        await rp.close()
+      }
+    } finally {
+      await sw.evaluate(s => chrome.storage.local.set(s), { 'markloupe:recent': saved['markloupe:recent'] || [], 'markloupe:pinned': saved['markloupe:pinned'] || [] })
     }
   })
   await check('關閉「外部連結開新分頁」後連結維持原樣', async () => {
