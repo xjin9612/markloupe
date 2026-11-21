@@ -23,19 +23,29 @@ function migrateLegacy() {
  * 擴充功能更新後腳本清單可能改變，所以 onInstalled 也重新註冊。
  */
 let webSync = Promise.resolve()
+
+/**
+ * manifest 中本機檔案的比對網址（file:///*.md）套到已授權的網站上。
+ * 使用者在擴充功能詳細資料頁把網站存取限制為特定網站時，授權的是那幾個網站（https://example.com/*），不是全部
+ */
+function webMatches(matches, origins) {
+  const sites = origins.map(o => /^(\*|https?):\/\/([^/]+)\//.exec(o)).filter(Boolean)
+  return sites.flatMap(([, scheme, host]) => matches.map(m => m.replace(/^file:\/\/\//, `${scheme}://${host}/`)))
+}
+
 /** 依目前的網站權限註冊或移除網頁用的 content script；依序執行，避免同時註冊同一個 id */
 function syncWebScripts() {
   const run = async () => {
-    const granted = await chrome.permissions.contains({ origins: Markloupe.WEB_ORIGINS })
+    const { origins = [] } = await chrome.permissions.getAll()
     const groups = chrome.runtime.getManifest().content_scripts
     const ids = groups.map((_, i) => `web-${i}`)
     const existing = (await chrome.scripting.getRegisteredContentScripts({ ids })).map(s => s.id)
     if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: existing })
-    if (!granted) return
+    if (!webMatches(['file:///'], origins).length) return
     await chrome.scripting.registerContentScripts(
       groups.map((g, i) => ({
         id: ids[i],
-        matches: g.matches.map(m => m.replace(/^file:\/\/\//, '*://*/')),
+        matches: webMatches(g.matches, origins),
         js: g.js,
         css: g.css,
         runAt: g.run_at,
