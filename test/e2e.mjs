@@ -3068,6 +3068,87 @@ try {
     }
   })
 
+  await check('解析邊界：大量特殊寫法不卡住渲染；行首 $$ 公式後接文字不吞掉後文；引用編號連結、提示框類型與 front matter', async () => {
+    const dir = join(work, 'edge-render')
+    mkdirSync(dir, { recursive: true })
+    const heavy = [
+      '# 大量特殊寫法',
+      '',
+      `> [!note] x${' '.repeat(40000)}y`,
+      '',
+      Array.from({ length: 8000 }, () => '$$x').join('\n'),
+      '',
+      '$` '.repeat(80000),
+      '',
+      `\`\`\`js {${Array.from({ length: 1700 }, (_, i) => `${i * 10001 + 1}-${i * 10001 + 10001}`).join(',')}}`,
+      'a',
+      '```',
+      '',
+      '## 結尾',
+      '',
+    ].join('\n')
+    writeFileSync(join(dir, 'heavy.md'), heavy)
+    const t0 = Date.now()
+    const hp = await openDoc(pathToFileURL(join(dir, 'heavy.md')).href, 20000)
+    try {
+      await hp.waitForSelector('.markdown-body h2')
+      assert.ok(Date.now() - t0 < 10000, `渲染耗時 ${Date.now() - t0}ms`)
+      assert.equal(await hp.locator('.markdown-body pre .code-line').count(), 1)
+    } finally {
+      await hp.close()
+    }
+    const md = [
+      '---',
+      'title: "a # b"',
+      'note: 文字 # 註解',
+      'a: 1\rb: 2',
+      '---',
+      '# 解析邊界',
+      '',
+      '$$E=mc^2$$ is famous.',
+      '',
+      '## 公式後的標題',
+      '',
+      '$$ is the shell PID.',
+      '',
+      'Price: 5$$',
+      '',
+      'See [[1]](https://example.com/ref) and [[筆記]]',
+      '',
+      '> [!constructor]',
+      '> 內容',
+      '',
+      '- [ ] 第一項',
+      '-',
+      '  [ ] 下一行才寫勾選框',
+      '- - [ ] 兩個清單符號',
+      '',
+    ].join('\n')
+    writeFileSync(join(dir, 'edge.md'), md)
+    const ep = await openDoc(pathToFileURL(join(dir, 'edge.md')).href)
+    try {
+      assert.equal(await ep.getAttribute('.markdown-body h2', 'data-ml-text'), '公式後的標題', '$$ 公式後接文字不吞掉後面的標題')
+      assert.equal(await ep.locator('.markdown-body p .math-display, .markdown-body p .katex-display').count() > 0, true, '行內的 $$ 公式')
+      assert.ok((await ep.textContent('.markdown-body')).includes('$$ is the shell PID.'), '沒有結尾的 $$ 照原文')
+      assert.deepEqual(await ep.$eval('.markdown-body a[href="https://example.com/ref"]', a => a.textContent), '[1]')
+      assert.equal(await ep.locator('.markdown-body a[href="筆記.md"], .markdown-body a[href="%E7%AD%86%E8%A8%98.md"]').count(), 1)
+      assert.equal(await ep.locator('blockquote.markdown-alert-note').count(), 1, '[!constructor] 照未知類型顯示成 note')
+      const fm = await ep.$$eval('.ml-fm-list > *', els => els.map(e => e.textContent))
+      assert.deepEqual(fm, ['title', 'a # b', 'note', '文字', 'a', '1', 'b', '2'])
+      // front matter 中單獨的 \r 也算一行（0 起算）：第一項在第 21 行，下一行才寫勾選框的在第 23 行
+      const lines = await ep.$$eval('input.ml-task-box', els => els.map(b => b.dataset.mlLine))
+      assert.deepEqual(lines, ['21', '23', '24'])
+    } finally {
+      await ep.close()
+    }
+    writeFileSync(join(dir, 'empty-fm.md'), '---\n---\n# 空的 front matter\n')
+    const fp = await openDoc(pathToFileURL(join(dir, 'empty-fm.md')).href)
+    try {
+      assert.equal(await fp.locator('.ml-frontmatter, .markdown-body hr').count(), 0)
+    } finally {
+      await fp.close()
+    }
+  })
   await check('Obsidian 語法：[[wikilink]] 連到同資料夾的筆記與標題，![[圖片]] 顯示圖片，提示框可摺疊與自訂標題', async () => {
     const dir = join(work, 'obsidian')
     mkdirSync(dir, { recursive: true })

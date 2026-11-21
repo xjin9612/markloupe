@@ -96,7 +96,13 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     }
     bindCopy(article)
     for (const el of els) {
-      if (el.isConnected) draw(el)
+      if (!el.isConnected) continue
+      // KaTeX 只把語法錯誤顯示成紅字；其他例外只影響這一個公式
+      try {
+        draw(el)
+      } catch {
+        showSource([el])
+      }
     }
   }
 })()

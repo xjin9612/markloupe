@@ -404,13 +404,15 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     render(src) {
       const { frontMatter, body } = Markloupe.splitFrontMatter(src)
       // 去掉 front matter 後的行號要加回偏移，才能對應原文
-      const lineOffset = (src.slice(0, src.length - body.length).match(/\n/g) || []).length
+      // 換行與 Markloupe.splitLines 一致：CRLF、LF 與單獨的 CR
+      const lineOffset = (src.slice(0, src.length - body.length).match(/\r\n|\r|\n/g) || []).length
       const frag = Markloupe.sanitize(this.md.render(body, { lineOffset }), this.md.markloupeNonce)
       this.article.textContent = ''
       const lang = Markloupe.frontMatterLang(frontMatter)
       if (lang) this.article.lang = lang
       else this.article.removeAttribute('lang')
-      if (frontMatter != null) {
+      // 空的 front matter（--- 緊接 ---）不顯示
+      if (frontMatter?.trim()) {
         // 單層的 key: value 以兩欄顯示；用 dl 而不是 table，才不會被當成文件裡的表格加上排序與工具列
         const entries = Markloupe.frontMatterEntries(frontMatter)
         const body = entries
@@ -1182,7 +1184,14 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
             }
           } else {
             this.emptySince = 0
-            if (src !== this.raw) this.update(src)
+            // 渲染失敗（例如文件內容觸發例外）時保留目前畫面，之後照常檢查
+            if (src !== this.raw) {
+              try {
+                this.update(src)
+              } catch (err) {
+                console.error('[Markloupe]', err)
+              }
+            }
           }
         }
         this.refreshTimer = setTimeout(tick, Math.max(300, this.settings.refreshInterval))

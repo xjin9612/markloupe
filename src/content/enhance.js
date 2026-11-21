@@ -148,7 +148,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     const count = [0, 0, 0, 0, 0, 0, 0]
     for (const el of heads) count[+el.dataset.mlLevel]++
     let level = count.findIndex(c => c >= 2)
-    if (level < 0) level = Math.min(...heads.map(el => +el.dataset.mlLevel))
+    if (level < 0) level = heads.reduce((m, el) => Math.min(m, +el.dataset.mlLevel), 6)
     for (const el of heads) if (+el.dataset.mlLevel === level) fold(el, true)
     notify(article)
   }

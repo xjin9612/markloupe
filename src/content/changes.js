@@ -177,12 +177,16 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     const RANGED = '[data-ml-line][data-ml-end]'
     // 文件順序的區塊：有行號的元素，以及裡外都沒有行號的最上層元素（範圍為前後區塊之間）
     const blocks = []
+    // 連續沒有行號的最上層區塊，前後有行號的區塊相同，範圍也相同：只算一次（逐一往前後找會變成二次方）
+    let run
     for (const el of article.querySelectorAll(`${RANGED}, :scope > *`)) {
-      if (el.matches(RANGED)) blocks.push({ el, start: +el.dataset.mlLine, end: +el.dataset.mlEnd, ranged: true })
-      else if (!el.querySelector(RANGED)) {
-        const r = Markloupe.blockRange(article, el, lines)
-        if (r) blocks.push({ el, start: r[0], end: r[1], ranged: false })
-      }
+      if (el.matches(RANGED)) {
+        blocks.push({ el, start: +el.dataset.mlLine, end: +el.dataset.mlEnd, ranged: true })
+        run = undefined
+      } else if (!el.querySelector(RANGED)) {
+        if (run === undefined) run = Markloupe.blockRange(article, el, lines)
+        if (run) blocks.push({ el, start: run[0], end: run[1], ranged: false })
+      } else run = undefined
     }
     const deepest = (l, inside = b => b.start <= l) => {
       let hit = null
