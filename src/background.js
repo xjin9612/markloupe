@@ -94,6 +94,29 @@ function sameBytes(a, b) {
   return true
 }
 
+/*
+ * 檔案分頁的狀態與清單快取：依分頁存在 storage.session（只有擴充功能讀得到，關閉瀏覽器即清除）。
+ * 不放頁面的 sessionStorage：同一分頁之後開啟的本機 HTML 讀得到，等於讓它取得任意資料夾的清單
+ */
+const FILES_CACHE_LIMIT = 50 // 每個分頁最多快取幾個資料夾的清單，超過時丟掉最舊的
+const filesKey = tabId => `files:${tabId}`
+let filesWrites = Promise.resolve()
+async function filesState(tabId) {
+  const k = filesKey(tabId)
+  return (await chrome.storage.session.get(k))[k] || { root: null, open: [], dirs: {} }
+}
+function updateFiles(tabId, fn) {
+  filesWrites = filesWrites
+    .then(async () => {
+      const s = await filesState(tabId)
+      fn(s)
+      await chrome.storage.session.set({ [filesKey(tabId)]: s })
+    })
+    .catch(() => {})
+  return filesWrites
+}
+chrome.tabs.onRemoved.addListener(tabId => chrome.storage.session.remove(filesKey(tabId)))
+
 const POS_LIMIT = 300 // 閱讀位置最多記幾份文件，超過時丟掉最久沒讀的
 let positions = Promise.resolve() // 閱讀位置依序寫入，各分頁同時捲動也不會互相蓋掉
 
@@ -161,11 +184,22 @@ const HANDLERS = {
     return { status: 'ok' }
   },
 
+  /** 檔案分頁的起點、展開的子資料夾與快取的清單（只限發出請求的分頁） */
+  async 'files-state'(msg, sender) {
+    if (sender.tab?.id == null) return { status: 'error' }
+    return { status: 'ok', ...(await filesState(sender.tab.id)) }
+  },
+  async 'files-save'(msg, sender) {
+    if (sender.tab?.id == null || typeof msg.root !== 'string' || !isLocalFolder(msg.root)) return { status: 'error', error: 'invalid root' }
+    const open = Array.isArray(msg.open) ? msg.open.filter(p => typeof p === 'string').slice(0, 500) : []
+    await updateFiles(sender.tab.id, s => Object.assign(s, { root: msg.root, open }))
+    return { status: 'ok' }
+  },
+
   /**
    * 側邊欄「檔案」分頁：列出資料夾的 Markdown 與子資料夾（讀取 Chrome 對 file:// 資料夾產生的清單頁）
-   * root：樹的起點（本機資料夾網址，預設為頁面所在資料夾），由檔案分頁保存在分頁的 sessionStorage。
-   *   同一分頁中的其他 file:// 頁面理論上能改寫它，所以這裡只接受本機路徑：不接受網路位置（UNC，
-   *   file://主機/… 或 file:////主機/…），避免被誘導去連線其他電腦
+   * root：樹的起點（本機資料夾網址，預設為頁面所在資料夾）。只接受本機路徑：不接受網路位置（UNC，
+   *   file://主機/… 或 file:////主機/…），避免連線其他電腦
    * path：從起點往下的資料夾名稱陣列，不接受 .. 等跳脫
    */
   async 'list-dir'(msg, sender) {
@@ -193,6 +227,14 @@ const HANDLERS = {
     }
     dirs.sort(NATURAL.compare)
     files.sort((a, b) => NATURAL.compare(a.name, b.name))
+    if (sender.tab?.id != null) {
+      await updateFiles(sender.tab.id, s => {
+        delete s.dirs[dir] // 重新插入，讓它排到最後（最新）
+        s.dirs[dir] = { dirs, files }
+        const urls = Object.keys(s.dirs)
+        for (const old of urls.slice(0, Math.max(0, urls.length - FILES_CACHE_LIMIT))) delete s.dirs[old]
+      })
+    }
     return { status: 'ok', dirs, files }
   },
 

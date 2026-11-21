@@ -17,32 +17,6 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     }
   }
 
-  /*
-   * 資料夾清單快取（sessionStorage，只在本分頁）：同一分頁內換檔時先顯示上次的清單，
-   * 背景重新讀取後再更新，側邊欄不會每次都閃一下「讀取中」。
-   */
-  const CACHE_KEY = 'markloupe:files'
-  const CACHE_LIMIT = 50 // 最多記住幾個資料夾，超過時丟掉最舊的
-  function readCache() {
-    try {
-      return JSON.parse(sessionStorage.getItem(CACHE_KEY)) || {}
-    } catch {
-      return {}
-    }
-  }
-  function writeCache(url, entry) {
-    try {
-      const cache = readCache()
-      delete cache[url] // 重新插入，讓它排到最後（最新）
-      cache[url] = entry
-      const urls = Object.keys(cache)
-      for (const old of urls.slice(0, Math.max(0, urls.length - CACHE_LIMIT))) delete cache[old]
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache))
-    } catch {
-      // 寫不進去（空間不足等）就不快取
-    }
-  }
-
   /** 保存的起點是否像本機資料夾網址（實際檢查由背景程式負責） */
   function isFolder(root) {
     return typeof root === 'string' && root.startsWith('file:///') && root.endsWith('/')
@@ -50,19 +24,15 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
 
   Markloupe.FileTree = class {
     /**
-     * @param {object} opts
-     * @param {string} [opts.root] 樹的起點（file:// 資料夾網址，結尾為 /），重新整理或在分頁內切換檔案後沿用
-     * @param {string[]} [opts.open] 已展開的子資料夾（相對起點的路徑）
-     * @param {(state: {root: string, open: string[]}) => void} opts.onChange 起點或展開狀態變更時呼叫，用來保存
+     * 樹的起點（file:// 資料夾網址，結尾為 /）與展開的子資料夾由 background 依分頁保存，重新整理或在分頁內切換檔案後沿用；
+     * 讀過的清單也快取在那裡，換檔時先顯示上次的清單，側邊欄不會每次都閃一下「讀取中」
      */
-    constructor({ root, open = [], onChange }) {
+    constructor() {
       this.page = location.href.split(/[?#]/)[0]
       this.pageDir = this.page.slice(0, this.page.lastIndexOf('/') + 1)
-      const keep = isFolder(root)
-      this.root = keep ? root : this.pageDir
-      this.open = new Set(keep ? open : [])
-      this.expandToPage()
-      this.onChange = onChange
+      this.root = this.pageDir
+      this.open = new Set() // 已展開的子資料夾（相對起點的路徑）
+      this.restored = false
       this.nodes = new Map() // 相對路徑 → { status: 'loading'|'ok'|'error', dirs, files }
       this.gen = 0 // 每次 init() 加一，用來丟棄起點變更前發出的讀取
       this.query = ''
@@ -101,7 +71,7 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
     }
 
     save() {
-      this.onChange?.({ root: this.root, open: [...this.open] })
+      chrome.runtime.sendMessage({ type: 'files-save', root: this.root, open: [...this.open] }).catch(() => {})
     }
 
     /** 子資料夾的網址（快取的鍵） */
@@ -114,9 +84,24 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       if (Markloupe.networkFile) return this.render()
       // 起點換了之後，舊的讀取結果全部作廢
       const gen = ++this.gen
+      let state = null
+      try {
+        state = await chrome.runtime.sendMessage({ type: 'files-state' })
+      } catch {
+        // 讀不到保存的狀態：從頁面所在的資料夾開始
+      }
+      if (gen !== this.gen) return
+      if (!this.restored) {
+        this.restored = true
+        if (isFolder(state?.root)) {
+          this.root = state.root
+          this.open = new Set(state.open)
+        }
+        this.expandToPage()
+      }
       this.nodes.clear()
-      // 先同步畫出快取的清單（換檔時側邊欄維持原樣），再逐一重新讀取
-      const cache = readCache()
+      // 先畫出快取的清單（換檔時側邊欄維持原樣），再逐一重新讀取
+      const cache = state?.dirs || {}
       for (const segs of [[], ...[...this.open].map(p => p.split('/'))]) {
         const c = cache[this.dirUrl(segs)]
         if (c) this.nodes.set(key(segs), { status: 'ok', dirs: c.dirs, files: c.files })
@@ -152,7 +137,6 @@ var Markloupe = globalThis.Markloupe || (globalThis.Markloupe = {})
       if (res?.status === 'ok') {
         const prev = this.nodes.get(k)
         const same = prev?.status === 'ok' && JSON.stringify([prev.dirs, prev.files]) === JSON.stringify([res.dirs, res.files])
-        writeCache(this.dirUrl(segs), { dirs: res.dirs, files: res.files })
         // 與快取相同就不重畫，捲動位置與滑鼠停留狀態都不受影響
         if (same) return
         this.nodes.set(k, { status: 'ok', dirs: res.dirs, files: res.files })
