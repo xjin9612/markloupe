@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release receives security fixes. The Chrome Web Store and Edge Add-ons update installed copies automatically.
+Only the latest release receives security fixes. Copies installed from the Chrome Web Store update automatically.
 
 ## Reporting a vulnerability
 
