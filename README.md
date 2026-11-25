@@ -63,7 +63,7 @@ Click a task checkbox in a local `.md` file. Markloupe saves `[ ]` / `[x]` strai
 
 Save the file in your editor and the page updates. Your scroll position, folded sections and table state stay as they were.
 
-Changed blocks get a colored bar, and a line marks where text was removed. Click **N changes** in the toolbar to jump to the next one. A mark goes away a few seconds after it scrolls into view while you are on the page, so saving from your editor keeps the marks until you come back. Turn this off in the popup → **Auto refresh**.
+Changed blocks get a colored bar, and a line marks where text was removed. Click **Changes: N** in the toolbar to jump to the next one. A mark goes away a few seconds after it scrolls into view while you are on the page, so saving from your editor keeps the marks until you come back. Turn this off in the popup → **Live reload**.
 
 ![Typing in an editor; the reading page updates after each save](docs/screenshots/liveReload.gif)
 
@@ -87,11 +87,11 @@ Six palettes work with both the light and dark themes: GitHub, sepia, high contr
 
 ### Print, PDF, HTML and Word export
 
-**Print / PDF** prints the whole document in light colors, with every section expanded. The margins show only a page number. Its menu can also put a table of contents at the start, or print only the section you are reading. **Export** saves what you see as an HTML file or a Word document. **Single file** embeds the images, so the file works on its own when you share it. **Link to images** keeps the file small.
+**Print / PDF** prints the whole document in light colors, with every section expanded. The margins show only a page number. Its menu can also put a table of contents at the start, or print only the section you are reading. **Export** saves the document as an HTML file or a Word document, with every section expanded and every table row shown. **Single file** embeds the images, so the file works on its own when you share it. **Link to images** keeps the file small.
 
 In a **Single file** export, links to local files keep their relative paths, and links to `.md` files point to `.html`. Export the linked documents into the same folder, and the links work between the exported files. Heading anchors match only between files that Markloupe exported. **Link to images** turns local links into absolute `file://` addresses, which work only on your computer.
 
-**Word document** turns headings, lists, tables, code, images and diagrams into Word's own styles, and formulas into Word equations you can edit, so you can change the font of the whole document in one place. Choose the fonts, size and paper in the popup → **Word export**. With *By document language*, Chinese text uses Microsoft JhengHei (Traditional) or Microsoft YaHei (Simplified), Japanese uses Yu Gothic and Korean uses Malgun Gothic. Footnotes become Word footnotes, and the front matter `title`, `author` and `date` go at the top and into the document properties. Fonts aren't embedded; if the reader's computer lacks one, Word substitutes a similar font. To match your organization's look, choose a Word document or template (.docx or .dotx) in the popup → **Word export** → **Word template**: Markloupe uses its styles for body text, headings and the rest, matching styles by name, so templates from localized Word work too. A style named `Code`, `Code Char`, `Table Text` or `Markloupe Table` in the template replaces Markloupe's own.
+**Word document** turns headings, lists, tables, code, images and diagrams into Word's own styles, and formulas into Word equations you can edit, so you can change the font of the whole document in one place. Choose the fonts, size and paper in the popup → **Word export**. With *By document language*, Chinese text uses Microsoft JhengHei (Traditional) or Microsoft YaHei (Simplified), Japanese uses Yu Gothic and Korean uses Malgun Gothic. Footnotes become Word footnotes, and the front matter `title`, `author` and `date` go at the top; `title` and `author` also go into the document properties. Fonts aren't embedded; if the reader's computer lacks one, Word substitutes a similar font. To match your organization's look, choose a Word document or template (.docx or .dotx) in the popup → **Word export** → **Word template**: Markloupe uses its styles for body text, headings and the rest, matching styles by name, so templates from localized Word work too. A style named `Code`, `Code Char`, `Table Text` or `Markloupe Table` in the template replaces Markloupe's own.
 
 Add `lang` to the front matter (for example `lang: zh-TW`) to set the document language for the reader and the exported file.
 
@@ -150,15 +150,15 @@ On a reading page (ignored while typing in a text box):
 
 | Key | Action |
 |---|---|
-| `t` | Show / hide the sidebar |
-| `/` | Search headings (Outline tab) or file names (Files tab) |
+| `t` | Show / hide the sidebar (current tab) |
+| `/` | Search headings (Outline tab), file names (Files tab) or recent documents (Recent tab) |
 | `[` / `]` | Fold all / unfold all |
 | `n` / `p` | Next / previous heading |
 | `f` | Focus mode: hide the toolbar and sidebar (current tab) |
-| `w` | Cycle text width |
+| `w` | Cycle text width (current tab) |
 | `d` | Cycle theme: auto → light → dark (all tabs) |
 | `+` (or `=`) / `-` / `0` | Larger / smaller / reset font size (all tabs) |
-| `r` | Raw source / back to reading |
+| `r` | Raw source / back to reading (current tab) |
 
 Browser-wide, changeable at `chrome://extensions/shortcuts`:
 
@@ -174,12 +174,12 @@ Browser-wide, changeable at `chrome://extensions/shortcuts`:
 Open the Markloupe icon in the toolbar for all settings.
 
 - **Theme, colors, custom CSS, font size, line height and body font** apply to every open tab right away.
-- **Sidebar, its width, and text width** apply to the current tab only, so you can compare documents side by side. They're kept when you reload or open another file in the same tab.
+- **Sidebar, its width, and text width** that you change on the reading page (toolbar, keys or dragging) apply to the current tab only, so you can compare documents side by side. For local files they're kept when you reload or open another file in the same tab; on websites they reset when you reload. The popup's **Layout defaults** set them for new tabs.
 - **Everything else** is the default for new tabs; open tabs pick it up after a reload.
 
 ## Privacy and security
 
-Markloupe collects no data and sends none of it anywhere; its only network request is reloading the document you opened. At install it asks only for `storage` (your settings) and `scripting` (to register its scripts for websites); access to websites is up to you. It runs no remote code: every library is packaged inside the extension. HTML inside documents is filtered, and a test suite of 60+ attack samples checks that none of them can run code. Details: [privacy policy](PRIVACY.md), [security design](docs/DEVELOPMENT.md#安全設計) (in Traditional Chinese). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Markloupe collects no data and sends none of it anywhere; its only network requests reload a document you opened from a website and, when you export, download the images in the document to embed them. At install it asks only for `storage` (your settings) and `scripting` (to register its scripts for websites); access to websites is up to you. It runs no remote code: every library is packaged inside the extension. HTML inside documents is filtered, and a test suite of 60+ attack samples checks that none of them can run code. Details: [privacy policy](PRIVACY.md), [security design](docs/DEVELOPMENT.md#安全設計) (in Traditional Chinese). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## FAQ
 
